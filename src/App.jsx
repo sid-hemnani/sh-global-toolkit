@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 // Sign up free at web3forms.com → get your access key → paste it here.
 // Free tier: 250 submissions/month. Sends full email to info@sh-global.in.
 const SEND_CONFIG = {
-  accessKey: "4e7909e0-8dea-46de-a1ea-398b24ada2a7", // ← replace before going live
+  accessKey: "YOUR_WEB3FORMS_ACCESS_KEY", // ← replace before going live
 };
 
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
@@ -1085,7 +1085,7 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
 
 // ─── CTA / SEND ───────────────────────────────────────────────────────────────
 function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, scope, submitted, setSubmitted, isMobile, validateForSend, onValidationFail }) {
-  const { mats, total, fireDoors, stdDoors } = calcResult;
+  const { mats, total, fireDoors, stdDoors, fsIs3614Mandatory } = calcResult;
   const [showModal, setShowModal] = useState(false);
   const [sending,   setSending]   = useState(false);
   const [sendError, setSendError] = useState("");
@@ -1097,93 +1097,241 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
   };
 
   function buildEmail() {
-    const line = (l,v) => `${l}: ${v||"—"}`;
-    const divider = "─".repeat(48);
-    let b = `SH GLOBAL — BOQ ENQUIRY\n${divider}\n\n`;
+    const scopeLabel = scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only";
+    const doorMeta = [
+      { key:"main",      label:"Main Door",      fire:true,  frdMin:60  },
+      { key:"staircase", label:"Staircase Door",  fire:true,  frdMin:120 },
+      { key:"bedroom",   label:"Bedroom Door",    fire:false, frdMin:null },
+      { key:"bathroom",  label:"Bathroom Door",   fire:false, frdMin:null },
+      { key:"duct",      label:"Duct Door",       fire:true,  frdMin:120 },
+    ].filter(m => qty[m.key] > 0);
 
-    b += `PROJECT DETAILS\n${divider}\n`;
-    b += `${line("Supply Scope",            scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only")}\n`;
-    b += `${line("Role",                    project.clientType)}\n`;
-    b += `${line("Contact Person",        project.contact)}\n`;
-    if (project.company) b += `${line("Company / Firm",   project.company)}\n`;
-    if (project.client)  b += `${line("End-Client",        project.client)}\n`;
-    b += `${line("Phone / WhatsApp",      project.phone)}\n`;
-    b += `${line("Email",                 project.email)}\n`;
-    b += `${line("Project Name",          project.name)}\n`;
-    if (project.projectType) b += `${line("Project Type", project.projectType)}\n`;
-    if (project.buildType)   b += `${line("Build Type",   project.buildType)}\n`;
-    b += `${line("Location",              project.location)}\n`;
-    if (project.location==="GCC" && project.gccCountry)
-      b += `${line("GCC Country",         project.gccCountry)}\n`;
-    if (project.site)        b += `${line("Site Address", project.site)}\n`;
-    if (project.scale)       b += `${line("Scale",        project.scale)}\n`;
-    if (project.value)       b += `${line("Approx. Value",project.value)}\n`;
-    if (project.startDate)   b += `${line("Target Start", project.startDate)}\n`;
-    if (project.endDate)     b += `${line("Target Completion", project.endDate)}\n`;
-    if (project.delivery)    b += `${line("Delivery / Site Notes", project.delivery)}\n`;
-    if (project.notes)       b += `${line("Additional Notes", project.notes)}\n`;
-    b += `${line("Heard via",             project.referralSource||"—")}\n`;
-    if (project.referralDetail) b += `${line("Referral detail", project.referralDetail)}\n`;
-    b += `\n`;
+    const navy = "#0d1f3c";
+    const gold = "#b87333";
+    const th = (txt, align="left") =>
+      `<th style="padding:8px 12px;background:${navy};color:#fff;font-size:12px;font-weight:700;text-align:${align};white-space:nowrap;">${txt}</th>`;
+    const td = (txt, align="left", bold=false, bg="#fff") =>
+      `<td style="padding:7px 12px;border-bottom:1px solid #e8eef8;font-size:12px;text-align:${align};font-weight:${bold?"700":"400"};background:${bg};">${txt||"—"}</td>`;
+    const section = (title) =>
+      `<tr><td colspan="20" style="padding:20px 0 6px;font-size:14px;font-weight:800;color:${navy};letter-spacing:0.5px;border-bottom:2px solid ${navy};">${title}</td></tr>`;
+    const tbl = (rows) =>
+      `<table style="width:100%;border-collapse:collapse;margin-bottom:24px;font-family:system-ui,sans-serif;">${rows}</table>`;
 
-    b += `DOOR QUANTITIES & DIMENSIONS\n${divider}\n`;
-    const doorMeta = {
-      main:      { label:"Main Door (FRD 60)",       fire:true,  frdMin:60  },
-      staircase: { label:"Staircase Door (FRD 120)", fire:true,  frdMin:120 },
-      bedroom:   { label:"Bedroom Door",             fire:false, frdMin:null },
-      bathroom:  { label:"Bathroom Door",            fire:false, frdMin:null },
-      duct:      { label:"Duct Door (FRD 120)",       fire:true,  frdMin:120 },
-    };
-    for (const [k, meta] of Object.entries(doorMeta)) {
-      const d = dims?.[k]||{};
-      const size = (d.w||d.h) ? `${d.w||"?"}W × ${d.h||"?"}H` : "Dimensions not entered";
-      const thk  = d.t ? `${d.t}mm` : "Not selected";
-      const std  = meta.fire ? ` · ${d.standard||"IS 3614"}` : "";
-      b += `${meta.label.padEnd(30)} Qty: ${qty[k]}   ${size}   Thickness: ${thk}${std}\n`;
-    }
-    b += `Total Doors: ${total}  (Fire: ${fireDoors} · Standard: ${stdDoors})\n`;
-    b += `Frame Sets Required: ${total}\n\n`;
+    // ── CLIENT DETAILS ─────────────────────────────────────────────────
+    const clientRows = [
+      ["Supply Scope", `<strong style="color:${gold}">${scopeLabel}</strong>`],
+      ["Role", project.clientType],
+      ["Contact", project.contact],
+      ["Company / Firm", project.company],
+      ["End-Client", project.client],
+      ["Phone / WhatsApp", project.phone],
+      ["Email", project.email],
+      ["Project Name", `<strong>${project.name}</strong>`],
+      ["Project Type", project.projectType],
+      ["Build Type", project.buildType],
+      ["Location", project.location + (project.gccCountry ? ` — ${project.gccCountry}` : "")],
+      ["Site Address", project.site],
+      ["Scale", project.scale],
+      ["Approx. Value", project.value],
+      ["Target Start", project.startDate],
+      ["Target Completion", project.endDate],
+      ["Delivery Notes", project.delivery],
+      ["Additional Notes", project.notes],
+      ["Heard via", project.referralSource + (project.referralDetail ? ` — ${project.referralDetail}` : "")],
+    ].filter(([,v]) => v && v.trim && v.trim() !== "" || typeof v !== "string");
 
-    b += `DOOR FRAME SPECIFICATIONS\n${divider}\n`;
-    for (const [k, meta] of Object.entries(doorMeta)) {
-      const f = frameSpecs?.[k]||{};
-      const section = (f.sectionW||f.sectionT) ? `${f.sectionW||"?"}W × ${f.sectionT||"?"}T mm` : "Not entered";
-      const opening = (f.openW||f.openH)       ? `${f.openW||"?"}W × ${f.openH||"?"}H mm`       : "Not entered";
-      b += `${(meta.label+" Frame").padEnd(32)} Qty: ${qty[k]}\n`;
-      b += `  Type: ${f.type||"—"}  |  Material: ${f.material||"—"}\n`;
-      b += `  Section Profile: ${section}  |  Opening Size: ${opening}\n`;
-    }
-    b += `\n`;
+    const clientTable = tbl(`
+      <thead><tr>${th("Field")}${th("Details")}</tr></thead>
+      <tbody>${clientRows.map(([l,v],i) =>
+        `<tr>${td(l, "left", false, i%2===0?"#f8f9fc":"#fff")}${td(v, "left", false, i%2===0?"#f8f9fc":"#fff")}</tr>`
+      ).join("")}</tbody>
+    `);
 
-    b += `HARDWARE & FINISHES (client-supplied)\n${divider}\n`;
-    HW_ROWS.forEach(r=>{
+    // ── DOOR QUANTITIES ────────────────────────────────────────────────
+    const doorTable = scope !== "frames" ? tbl(`
+      <thead><tr>
+        ${th("Door Type")}${th("Qty","center")}${th("Width (mm)","right")}${th("Height (mm)","right")}
+        ${th("Thickness (mm)","right")}${th("Standard","center")}${th("Fire Rating","center")}${th("Hinges","center")}
+      </tr></thead>
+      <tbody>
+        ${doorMeta.map((m,i) => {
+          const d = dims[m.key]||{};
+          const bg = i%2===0?"#fff":"#f8f9fc";
+          const fireBg = m.fire ? "#fdf0ec" : bg;
+          return `<tr>
+            ${td(`${m.fire?`<span style="background:#b83a1a;color:#fff;padding:2px 6px;border-radius:4px;font-size:10px;margin-right:6px;">FRD ${m.frdMin}</span>`:""}${m.label}`, "left", true, fireBg)}
+            ${td(qty[m.key], "center", true, fireBg)}
+            ${td(d.w||"—", "right", false, fireBg)}
+            ${td(d.h||"—", "right", false, fireBg)}
+            ${td(d.t ? d.t+"mm" : "—", "right", true, fireBg)}
+            ${td(m.fire ? (d.standard||"IS 3614") : "N/A", "center", false, fireBg)}
+            ${td(m.fire ? `FRD ${m.frdMin} min` : "No", "center", false, fireBg)}
+            ${td(m.hinges, "center", false, fireBg)}
+          </tr>`;
+        }).join("")}
+        <tr style="background:#e8eef8;">
+          ${td("<strong>TOTAL</strong>", "left", true, "#e8eef8")}
+          ${td(`<strong>${total}</strong>`, "center", true, "#e8eef8")}
+          ${td("", "right", false, "#e8eef8")}${td("", "right", false, "#e8eef8")}${td("", "right", false, "#e8eef8")}
+          ${td(`Fire: ${fireDoors}`, "center", false, "#e8eef8")}
+          ${td(`Std: ${stdDoors}`, "center", false, "#e8eef8")}
+          ${td("", "center", false, "#e8eef8")}
+        </tr>
+      </tbody>
+    `) : "";
+
+    // ── FRAME SPECIFICATIONS ────────────────────────────────────────────
+    const frameTable = scope !== "doors" ? tbl(`
+      <thead><tr>
+        ${th("Door Type")}${th("Sets","center")}${th("Frame Type")}${th("Material")}
+        ${th("Section W (mm)","right")}${th("Section T (mm)","right")}
+        ${th("Opening W (mm)","right")}${th("Opening H (mm)","right")}
+      </tr></thead>
+      <tbody>
+        ${doorMeta.map((m,i) => {
+          const f = frameSpecs[m.key]||{};
+          const bg = i%2===0?"#fff":"#f8f9fc";
+          return `<tr>
+            ${td(m.label, "left", true, bg)}
+            ${td(qty[m.key], "center", true, bg)}
+            ${td(f.type||"—", "left", false, bg)}
+            ${td(f.material||"—", "left", false, bg)}
+            ${td(f.sectionW||"—", "right", false, "#fffbf4")}
+            ${td(f.sectionT||"—", "right", false, "#fffbf4")}
+            ${td(f.openW||"—", "right", false, "#f4f7fc")}
+            ${td(f.openH||"—", "right", false, "#f4f7fc")}
+          </tr>`;
+        }).join("")}
+      </tbody>
+    `) : "";
+
+    // ── HARDWARE ────────────────────────────────────────────────────────
+    const hwRows = HW_ROWS.map((r,i) => {
       const autoQty = mats[autoQtyMap[r.key]]?.orderQty||0;
       const userQty = hw[r.key]?.qty !== undefined ? hw[r.key].qty : autoQty;
       const price   = hw[r.key]?.price||0;
       const spec    = hw[r.key]?.spec||"Not specified";
       const lineTotal = Number(price) * Number(userQty);
-      b += `${r.label}\n`;
-      b += `  Spec: ${spec}\n`;
-      b += `  Qty: ${userQty} ${r.unit}  |  Unit Price: ${price ? "\u20B9"+Number(price).toLocaleString("en-IN") : "—"}`;
-      b += `  |  Line Total: ${lineTotal>0?"\u20B9"+Math.round(lineTotal).toLocaleString("en-IN"):"—"}\n`;
-    });
-    b += `${line("Supply Scope", scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only")}\n`;
-    b += `\n`;
+      const isSeal = r.key === "fireSeal";
+      const bg = isSeal && fsIs3614Mandatory ? "#fdf0ec" : i%2===0?"#fff":"#f8f9fc";
+      return `<tr>
+        ${td(r.label + (isSeal && fsIs3614Mandatory ? ' <span style="background:#b83a1a;color:#fff;padding:1px 5px;border-radius:3px;font-size:10px;">IS 3614 MANDATORY</span>' : ""), "left", false, bg)}
+        ${td(spec, "left", false, bg)}
+        ${td(`${userQty} ${r.unit}`, "center", true, bg)}
+        ${td(price ? "₹"+Number(price).toLocaleString("en-IN") : "—", "right", false, bg)}
+        ${td(lineTotal>0 ? "₹"+Math.round(lineTotal).toLocaleString("en-IN") : "—", "right", true, bg)}
+      </tr>`;
+    }).join("");
 
-    b += `${divider}\n`;
-    if (refImages && refImages.length > 0) {
-      b += `REFERENCE IMAGES (${refImages.length} image${refImages.length>1?"s":""})\n${divider}\n`;
-      b += `The client has attached reference images. Please reply to this email requesting them to forward the images.\n\n`;
-      refImages.forEach((img, i) => {
-        b += `  [${i+1}] ${img.name}${img.note ? ` — "${img.note}"` : ""}\n`;
-      });
-      b += `\n${divider}\n`;
-    } else {
-      b += `${divider}\n`;
-    }
-    b += `Generated via SH Global Doors Toolkit | sh-global.in\n`;
-    b += `Doors, frames, architraves, installation and services to be priced by SH Global.`;
-    return b;
+    const hardwareTable = tbl(`
+      <thead><tr>
+        ${th("Item")}${th("Spec / Brand")}${th("Qty","center")}${th("Unit Price","right")}${th("Line Total","right")}
+      </tr></thead>
+      <tbody>${hwRows}</tbody>
+    `);
+
+    // ── QUOTE PREP TABLE ────────────────────────────────────────────────
+    const quoteItems = [
+      ...(scope!=="frames" ? [
+        ["Door Leaves", `${total} nos`, ""],
+        ...doorMeta.filter(m=>m.fire).map(m=>[`  └ ${m.label} (FRD ${m.frdMin})`, `${qty[m.key]} nos · ${dims[m.key]?.w||"?"}×${dims[m.key]?.h||"?"}×${dims[m.key]?.t||"?"}mm · ${dims[m.key]?.standard||"IS 3614"}`, ""]),
+        ...doorMeta.filter(m=>!m.fire).map(m=>[`  └ ${m.label}`, `${qty[m.key]} nos · ${dims[m.key]?.w||"?"}×${dims[m.key]?.h||"?"}mm`, ""]),
+      ] : []),
+      ...(scope!=="doors" ? [
+        ["Door Frames", `${total} sets`, ""],
+        ...doorMeta.map(m=>[`  └ ${m.label} Frame`, `${qty[m.key]} sets · ${frameSpecs[m.key]?.material||"?"} · ${frameSpecs[m.key]?.type||"?"}`, ""]),
+      ] : []),
+      ["Architrave Sets", `${total} sets`, ""],
+      ["Door Installation", `${total} nos`, ""],
+      ["Frame Installation", `${total} sets`, ""],
+      ["Polishing / Finish", `${total} nos`, ""],
+      ["Delivery & Handling", "Lump sum", ""],
+    ];
+
+    const quoteTable = tbl(`
+      <thead><tr>
+        ${th("Line Item")}${th("Description")}
+        ${th("Unit Rate (₹)","right")}${th("Amount (₹)","right")}${th("Notes")}
+      </tr></thead>
+      <tbody>
+        ${quoteItems.map(([item, desc],i) => {
+          const isSubitem = item.startsWith("  └");
+          const bg = isSubitem ? "#fafbff" : i%2===0?"#fff":"#f8f9fc";
+          return `<tr>
+            ${td(isSubitem ? item : `<strong>${item}</strong>`, "left", !isSubitem, bg)}
+            ${td(desc, "left", false, bg)}
+            ${td("", "right", false, bg)}
+            ${td("", "right", false, bg)}
+            ${td("", "left", false, bg)}
+          </tr>`;
+        }).join("")}
+        <tr style="background:#e8eef8;">
+          ${td("<strong>SUBTOTAL</strong>","left",true,"#e8eef8")}
+          ${td("","left",false,"#e8eef8")}
+          ${td("","right",false,"#e8eef8")}
+          ${td("<strong></strong>","right",true,"#e8eef8")}
+          ${td("","left",false,"#e8eef8")}
+        </tr>
+        <tr style="background:#e8eef8;">
+          ${td("<strong>GST @ 18%</strong>","left",true,"#e8eef8")}
+          ${td("","left",false,"#e8eef8")}
+          ${td("","right",false,"#e8eef8")}
+          ${td("<strong></strong>","right",true,"#e8eef8")}
+          ${td("","left",false,"#e8eef8")}
+        </tr>
+        <tr style="background:${navy};">
+          ${td(`<span style="color:#fff;font-size:14px;"><strong>TOTAL</strong></span>`,"left",true,navy)}
+          ${td("","left",false,navy)}
+          ${td("","right",false,navy)}
+          ${td(`<span style="color:#fff;font-size:14px;"><strong></strong></span>`,"right",true,navy)}
+          ${td("","left",false,navy)}
+        </tr>
+      </tbody>
+    `);
+
+    // ── REF IMAGES ──────────────────────────────────────────────────────
+    const imagesNote = refImages?.length > 0
+      ? `<p style="background:#fffbf2;border:1px solid #e0c8a8;border-radius:6px;padding:10px 14px;font-size:12px;color:#4a2c0a;">
+          <strong>📎 ${refImages.length} reference image${refImages.length>1?"s":""} attached</strong> — client will forward on request.<br/>
+          ${refImages.map((img,i)=>`[${i+1}] ${img.name}${img.note?` — "${img.note}"`:""}`.trim()).join(" &nbsp;·&nbsp; ")}
+        </p>` : "";
+
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"/></head><body style="font-family:system-ui,-apple-system,sans-serif;color:#1a1e2e;max-width:900px;margin:0 auto;padding:24px;">
+
+      <div style="background:linear-gradient(135deg,${navy},#1a3561);padding:20px 28px;border-radius:10px;margin-bottom:24px;">
+        <div style="color:#fff;font-size:20px;font-weight:800;letter-spacing:0.5px;">SH GLOBAL — BOQ ENQUIRY</div>
+        <div style="color:#6a9ad0;font-size:12px;margin-top:4px;">Received ${new Date().toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})}</div>
+      </div>
+
+      ${tbl(`<tbody><tr><td style="font-size:13px;font-weight:700;color:${navy};padding:0 0 16px;">1. CLIENT & PROJECT DETAILS</td></tr></tbody>`)}
+      ${clientTable}
+
+      ${doorMeta.length > 0 && scope!=="frames" ? `
+        ${tbl(`<tbody><tr><td style="font-size:13px;font-weight:700;color:${navy};padding:0 0 16px;">2. DOOR QUANTITIES & DIMENSIONS</td></tr></tbody>`)}
+        ${doorTable}
+      ` : ""}
+
+      ${doorMeta.length > 0 && scope!=="doors" ? `
+        ${tbl(`<tbody><tr><td style="font-size:13px;font-weight:700;color:${navy};padding:0 0 16px;">3. FRAME SPECIFICATIONS</td></tr></tbody>`)}
+        ${frameTable}
+      ` : ""}
+
+      ${tbl(`<tbody><tr><td style="font-size:13px;font-weight:700;color:${navy};padding:0 0 16px;">4. HARDWARE & FINISHES (client-supplied pricing)</td></tr></tbody>`)}
+      ${hardwareTable}
+
+      ${imagesNote}
+
+      <div style="background:#fff8f0;border:2px solid ${gold};border-radius:10px;padding:20px 24px;margin-top:8px;">
+        <div style="font-size:14px;font-weight:800;color:${navy};margin-bottom:16px;">5. QUOTE PREPARATION — SH GLOBAL PRICING</div>
+        <p style="font-size:11px;color:#5a6480;margin:0 0 12px;">Fill in Unit Rate and Amount below, then forward as your formal quotation.</p>
+        ${quoteTable}
+      </div>
+
+      <div style="margin-top:24px;padding:14px 20px;background:#f8f9fc;border-radius:8px;font-size:11px;color:#9aa0b0;text-align:center;">
+        Generated via SH Global Doors &amp; Door Frames BOQ Tool · tools.sh-global.in<br/>
+        Doors, frames, architraves, installation and services priced by SH Global only.
+      </div>
+    </body></html>`;
   }
 
   const openModal = () => {
@@ -1209,6 +1357,7 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
           email: project.email || "",
           message: body,
           replyto: project.email || "",
+          is_html: true,
         }),
       });
       const data = await res.json();
