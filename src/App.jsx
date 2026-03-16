@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect } from "react";
 // Sign up free at web3forms.com → get your access key → paste it here.
 // Free tier: 250 submissions/month. Sends full email to info@sh-global.in.
 const SEND_CONFIG = {
-  accessKey: "YOUR_WEB3FORMS_ACCESS_KEY", // ← replace before going live
+  accessKey: "4e7909e0-8dea-46de-a1ea-398b24ada2a7", // ← replace before going live
 };
 
 // ─── HOOKS ────────────────────────────────────────────────────────────────────
