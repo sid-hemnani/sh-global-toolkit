@@ -22,11 +22,17 @@ function useWindowWidth() {
 // Returns { fieldKey: "error message" } for each failing field
 function validateTab1(project) {
   const e = {};
-  if (!project.clientType)        e.clientType = "Please select your role";
-  if (!project.contact?.trim())   e.contact    = "Your name is required";
+  if (!project.clientType)           e.clientType      = "Please select your role";
+  if (!project.contact?.trim())      e.contact         = "Your name is required";
   if (!project.phone?.trim() && !project.email?.trim())
-                                   e.phone      = "Phone or email is required";
-  if (!project.name?.trim())      e.name       = "Project name is required";
+                                     e.phone           = "Phone or email is required";
+  if (project.phone?.trim() && !/^\d{10}$/.test(project.phone.trim().replace(/\s/g,"")))
+                                     e.phone           = "Enter a valid 10-digit phone number";
+  if (!project.name?.trim())         e.name            = "Project name is required";
+  if (!project.projectType)          e.projectType     = "Please select a project type";
+  if (!project.location)             e.location        = "Please select a project location";
+  if (!project.startDate?.trim())    e.startDate       = "Target start date is required";
+  if (!project.referralSource)       e.referralSource  = "Please tell us how you found us";
   return e;
 }
 function validateTab2(qty) {
@@ -267,6 +273,30 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
 
   const errBorder = (key) => err[key] ? `1.5px solid #e05050` : `1px solid ${C.border}`;
 
+  // Phone field with 10-digit validation display
+  const phoneField = (
+    <label style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600,
+      color: err.phone ? "#b03030" : C.muted }}>
+      <span>Phone / WhatsApp<span style={{color:"#e05050",marginLeft:2}}>*</span></span>
+      <input
+        type="tel"
+        value={project.phone||""}
+        placeholder="Phone / WhatsApp"
+        maxLength={10}
+        onChange={e=>{
+          const v = e.target.value.replace(/\D/g,"").slice(0,10);
+          setProject(p=>({...p, phone:v}));
+        }}
+        style={{ padding:"8px 10px", border: errBorder("phone"), borderRadius:6,
+          fontSize:13, color:C.text, background:"#fff", width:"100%", boxSizing:"border-box" }}
+      />
+      <span style={{ fontSize:10, color: (project.phone||"").length===10 ? "#2a8a3a" : C.muted }}>
+        {(project.phone||"").length}/10 digits{(project.phone||"").length===10 ? " ✓" : " required"}
+      </span>
+      {err.phone && <span style={{color:"#e05050",fontSize:11}}>{err.phone}</span>}
+    </label>
+  );
+
   const sel = (label, key, options, placeholder, required) => (
     <label key={key} style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600, color: err[key] ? "#b03030" : C.muted }}>
       <span>{label}{required && <span style={{color:"#e05050",marginLeft:2}}>*</span>}</span>
@@ -275,21 +305,21 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
         style={{ padding:"8px 10px", border: errBorder(key), borderRadius:6,
           fontSize:13, background:"#fff",
           color:project[key] ? C.text : C.muted, width:"100%" }}>
-        <option value="">{placeholder||"— Select —"}</option>
+        <option value="">{label}</option>
         {options.map(o=><option key={o} value={o}>{o}</option>)}
       </select>
       {err[key] && <span style={{color:"#e05050",fontSize:11}}>{err[key]}</span>}
     </label>
   );
 
-  const txt = (label, key, ph, span, required) => (
+  const txt = (label, key, span, required) => (
     <label key={key} style={{
       display:"flex", flexDirection:"column", gap:5,
       fontSize:12, fontWeight:600, color: err[key] ? "#b03030" : C.muted,
       gridColumn: span ? `1 / span ${span}` : "auto",
     }}>
       <span>{label}{required && <span style={{color:"#e05050",marginLeft:2}}>*</span>}</span>
-      <TextInput value={project[key]||""} onChange={v=>setProject(p=>({...p,[key]:v}))} placeholder={ph} wide
+      <TextInput value={project[key]||""} onChange={v=>setProject(p=>({...p,[key]:v}))} placeholder={label} wide
         style={{ border: errBorder(key) }} />
       {err[key] && <span style={{color:"#e05050",fontSize:11}}>{err[key]}</span>}
     </label>
@@ -302,11 +332,11 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
         <SectionHeader children="About You" sub="Helps SH Global understand your role and tailor the quotation accordingly" />
         <div style={{ padding:20, display:"grid", gridTemplateColumns:cols, gap:14 }}>
           {sel("I am a","clientType", CLIENT_TYPES,"— Select your role —", true)}
-          {txt("Your Name / Contact Person","contact","e.g. Rahul Sharma", null, true)}
-          {txt("Company / Firm Name","company","e.g. Priya Interiors / ABC Builders (leave blank if homeowner)")}
-          {txt("Phone / WhatsApp","phone","+91 98XXX XXXXX", null, !project.email?.trim())}
-          {txt("Email Address","email","your@email.com", null, !project.phone?.trim())}
-          {txt("Client / End-User Name","client","e.g. Lodha Developers (if you're specifying on behalf of someone)")}
+          {txt("Your Name / Contact Person","contact", null, true)}
+          {txt("Company / Firm Name","company")}
+          {phoneField}
+          {txt("Email Address","email", null, !project.phone?.trim())}
+          {txt("Client / End-User Name","client")}
         </div>
       </Card>
 
@@ -314,13 +344,14 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
       <Card>
         <SectionHeader children="Project Details" sub="Tell us about the project — this goes directly into your quotation" />
         <div style={{ padding:20, display:"grid", gridTemplateColumns:cols, gap:14 }}>
-          {txt("Project Name","name","e.g. Palava Phase 3 — Tower C", null, true)}
-          {sel("Project Type","projectType", PROJECT_TYPES)}
-          {sel("Build Type","buildType", BUILD_TYPES)}
+          {txt("Project Name","name", null, true)}
+          {sel("Project Type","projectType", PROJECT_TYPES, "Project Type", true)}
+          {sel("Build Type","buildType", BUILD_TYPES, "Build Type")}
 
-          {/* Location toggle */}
-          <label style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600, color:C.muted }}>
-            Project Location
+          {/* Location toggle — mandatory */}
+          <label style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600,
+            color: err.location ? "#b03030" : C.muted }}>
+            <span>Project Location<span style={{color:"#e05050",marginLeft:2}}>*</span></span>
             <div style={{ display:"flex", gap:8 }}>
               {["Mumbai","Pan India","GCC"].map(loc=>(
                 <label key={loc} style={{
@@ -328,7 +359,7 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
                   gap:6, padding:"8px 6px", borderRadius:6, cursor:"pointer", fontSize:12,
                   fontWeight: project.location===loc ? 700 : 400,
                   background: project.location===loc ? C.navyPale : "#f5f5f5",
-                  border: `1.5px solid ${project.location===loc ? C.navyBorder : "#ddd"}`,
+                  border: `1.5px solid ${project.location===loc ? C.navyBorder : err.location ? "#e05050" : "#ddd"}`,
                   color: project.location===loc ? C.navy : C.muted,
                 }}>
                   <input type="radio" checked={project.location===loc}
@@ -338,22 +369,23 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
                 </label>
               ))}
             </div>
+            {err.location && <span style={{color:"#e05050",fontSize:11}}>{err.location}</span>}
           </label>
 
           {isGCC
-            ? sel("GCC Country / Emirate","gccCountry", GCC_COUNTRIES)
-            : txt("Site Address","site","e.g. Thane, Maharashtra / Bandra, Mumbai")
+            ? sel("GCC Country / Emirate","gccCountry", GCC_COUNTRIES, "GCC Country / Emirate")
+            : txt("Site Address","site")
           }
 
-          {txt("Approx. Number of Units / Floors","scale","e.g. 24 floors · 4 apartments per floor")}
-          {txt("Approx. Budget / Project Value","value","e.g. ₹50L / AED 200K")}
-          {txt("Target Start Date","startDate","e.g. June 2025")}
-          {txt("Target Completion Date","endDate","e.g. December 2025")}
+          {txt("Approx. Number of Units / Floors","scale")}
+          {txt("Approx. Budget / Project Value","value")}
+          {txt("Target Start Date","startDate", null, true)}
+          {txt("Target Completion Date","endDate")}
 
           <label style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600, color:C.muted, gridColumn:`1 / span ${span3}` }}>
             Delivery Requirements / Site Access Notes
             <textarea value={project.delivery||""} rows={2}
-              placeholder="e.g. Phased delivery — Tower A first · Crane access available · No deliveries on Sundays"
+              placeholder="Delivery Requirements / Site Access Notes"
               onChange={e=>setProject(p=>({...p, delivery:e.target.value}))}
               style={{ padding:"8px 10px", border:`1px solid ${C.border}`, borderRadius:6,
                 fontSize:13, color:C.text, background:"#fff", resize:"vertical", fontFamily:"inherit" }} />
@@ -362,7 +394,7 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
           <label style={{ display:"flex", flexDirection:"column", gap:5, fontSize:12, fontWeight:600, color:C.muted, gridColumn:`1 / span ${span3}` }}>
             Additional Notes / Special Requirements
             <textarea value={project.notes||""} rows={2}
-              placeholder="Anything else SH Global should know — preferred materials, design constraints, existing conditions etc."
+              placeholder="Additional Notes / Special Requirements"
               onChange={e=>setProject(p=>({...p, notes:e.target.value}))}
               style={{ padding:"8px 10px", border:`1px solid ${C.border}`, borderRadius:6,
                 fontSize:13, color:C.text, background:"#fff", resize:"vertical", fontFamily:"inherit" }} />
@@ -370,12 +402,12 @@ function ProjectInfo({ project, setProject, refImages, setRefImages, isMobile, i
         </div>
       </Card>
 
-      {/* Referral */}
+      {/* Referral — mandatory */}
       <Card>
         <SectionHeader children="How Did You Find Us?" sub="Helps SH Global understand where clients are coming from" />
         <div style={{ padding:20, display:"grid", gridTemplateColumns:isMobile?"1fr":cols, gap:16 }}>
-          {sel("Where did you hear about SH Global?","referralSource", REFERRAL_OPTIONS, "— Please select —")}
-          {txt("Referred by / additional detail","referralDetail","e.g. Shared by Rahul Mehta · Architect Priya Sharma")}
+          {sel("Where did you hear about SH Global?","referralSource", REFERRAL_OPTIONS, "Where did you hear about SH Global?", true)}
+          {txt("Referred by / additional detail","referralDetail")}
         </div>
       </Card>
 
@@ -554,8 +586,8 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
   const setFrameSpec = (key, field, val) => {
     setFrameSpecs(f => {
       const fs = { ...f[key], [field]: val };
-      // When frame opening/section changes, sync door dims if not already filled
       if (inclDoors) {
+        // Frame opening/section changed → try to fill door dims
         const auto = autoDoorFromFrame(fs);
         if (auto) {
           setDims(d => {
@@ -566,6 +598,20 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
             return { ...d, [key]: next };
           });
         }
+      }
+      // Section width changed while door dims already exist → auto-fill frame opening
+      if ((field === "sectionW") && inclFrames) {
+        setDims(d => {
+          const doorDims = d[key] || {};
+          const autoOpen = autoFrameOpenFromDoor(doorDims, fs);
+          if (autoOpen) {
+            setFrameSpecs(prev => ({
+              ...prev,
+              [key]: { ...prev[key], [field]: val, ...autoOpen }
+            }));
+          }
+          return d;
+        });
       }
       return { ...f, [key]: fs };
     });
@@ -809,8 +855,8 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
                 {doorRows.map(r => {
                   const fs = frameSpecs[r.key] || {};
                   const d  = dims[r.key] || {};
-                  // Auto opening from door dims
-                  const autoF = scope === "doors" ? autoFrameOpenFromDoor(d, fs) : null;
+                  // Auto opening from door dims (both scope or doors-only scope)
+                  const autoF = (scope === "doors" || scope === "both") ? autoFrameOpenFromDoor(d, fs) : null;
 
                   return (
                     <tr key={r.key} style={{ background:"#fff" }}>
@@ -966,13 +1012,19 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
 // ─── TAB 3: HARDWARE & FINISHES ───────────────────────────────────────────────
 function HardwareFinishes({ hw, setHw, calcResult }) {
   const { mats } = calcResult;
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // map hw key → mats key for auto qty
   const autoQtyMap = {
     hinges:"hinges", anchors:"anchors", lockBody:"lockBody",
     doorClosers:"doorClosers", latchSets:"latchSets", handles:"handles",
     fireSeal:"fireSeal", screwsPack:"screws", laminateVeneer:"laminate",
   };
+
+  const BASIC_KEYS    = ["hinges","lockBody","doorClosers","latchSets","handles","laminateVeneer"];
+  const ADVANCED_KEYS = ["anchors","fireSeal","screwsPack"];
+
+  const basicRows    = HW_ROWS.filter(r => BASIC_KEYS.includes(r.key));
+  const advancedRows = HW_ROWS.filter(r => ADVANCED_KEYS.includes(r.key));
 
   const hwSubtotal = HW_ROWS.reduce((sum, r)=>{
     const price = Number(hw[r.key]?.price)||0;
@@ -988,88 +1040,110 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
       return { ...h, [key]: entry };
     });
 
+  const hwRow = (r) => {
+    const autoQty = mats[autoQtyMap[r.key]]?.orderQty || 0;
+    const userQty = hw[r.key]?.qty !== undefined ? hw[r.key].qty : "";
+    const effectiveQty = userQty !== "" ? Number(userQty) : autoQty;
+    const price = Number(hw[r.key]?.price)||0;
+    const lineTotal = price * effectiveQty;
+    return (
+      <tr key={r.key}>
+        <TD bold>{r.label}</TD>
+        <TD center muted>{r.unit}</TD>
+        <TD input>
+          <input type="text" value={hw[r.key]?.spec||""}
+            placeholder={r.label}
+            onChange={e=>setField(r.key,"spec",e.target.value)}
+            style={{ width:"100%", padding:"5px 8px", border:`1px solid ${C.border}`,
+              borderRadius:5, fontSize:12, color:C.text, background:"transparent", minWidth:180 }} />
+        </TD>
+        <TD right muted>{autoQty}</TD>
+        <TD right input>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+            <NumInput value={userQty !== "" ? userQty : autoQty} onChange={v=>setField(r.key,"qty",v)} width={72} />
+            {userQty !== "" && (
+              <button onClick={()=>setField(r.key,"qty",undefined)}
+                style={{ fontSize:10, color:C.muted, background:"none", border:"none", cursor:"pointer", padding:0, textDecoration:"underline" }}>
+                reset to auto
+              </button>
+            )}
+          </div>
+        </TD>
+        <TD right input>
+          <NumInput value={hw[r.key]?.price||""} onChange={v=>setField(r.key,"price",v)} width={90} />
+        </TD>
+        <TD right bold accent>
+          {lineTotal>0 ? rupee(Math.round(lineTotal)) : <span style={{color:C.muted,fontSize:12}}>—</span>}
+        </TD>
+      </tr>
+    );
+  };
+
+  const tableHeader = (
+    <thead><tr>
+      <TH>Item</TH><TH>Unit</TH>
+      <TH>Brand / Specification</TH>
+      <TH right>Auto Qty</TH><TH right>Your Qty</TH>
+      <TH right>Unit Price (₹)</TH><TH right accent>Line Total</TH>
+    </tr></thead>
+  );
+
   return (
     <div>
       <div style={{ background:"#fffbf2", border:`1px solid ${C.brownBorder}`, borderRadius:10,
         padding:"14px 18px", marginBottom:16, display:"flex", gap:12, alignItems:"flex-start" }}>
         <span style={{ fontSize:20 }}>✏️</span>
         <div style={{ fontSize:13, color:C.brownDark, lineHeight:1.7 }}>
-          <strong>This section is for hardware and finishes that you may procure directly.</strong><br/>
-          Enter your preferred brands, specifications, and unit prices.
-          Quantities are auto-filled from your door numbers — you can override them.
+          <strong>For hardware and finishes you may procure directly.</strong><br/>
+          Enter your preferred brands, specifications, and unit prices. Quantities are auto-filled from your door numbers.
           Doors, frames, architraves, installation and services are priced separately by SH Global.
         </div>
       </div>
 
+      {/* BASIC HARDWARE */}
       <Card>
-        <SectionHeader children="Hardware & Finishes" sub="Enter brand, specification and unit price for items you are sourcing" />
+        <SectionHeader children="Hardware & Finishes" sub="Core items — enter brand, spec and unit price for items you are sourcing" />
         <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          <thead><tr>
-            <TH>Item</TH><TH>Unit</TH>
-            <TH>Brand / Specification</TH>
-            <TH right>Auto Qty</TH><TH right>Your Qty</TH>
-            <TH right>Unit Price (₹)</TH><TH right accent>Line Total</TH>
-          </tr></thead>
-          <tbody>
-            {HW_ROWS.map(r=>{
-              const autoQty = mats[autoQtyMap[r.key]]?.orderQty || 0;
-              const userQty = hw[r.key]?.qty !== undefined ? hw[r.key].qty : "";
-              const effectiveQty = userQty !== "" ? Number(userQty) : autoQty;
-              const price = Number(hw[r.key]?.price)||0;
-              const lineTotal = price * effectiveQty;
-              return (
-                <tr key={r.key}>
-                  <TD bold>{r.label}</TD>
-                  <TD center muted>{r.unit}</TD>
-                  <TD input>
-                    <input
-                      type="text"
-                      value={hw[r.key]?.spec||""}
-                      placeholder={r.placeholder}
-                      onChange={e=>setField(r.key,"spec",e.target.value)}
-                      style={{
-                        width:"100%", padding:"5px 8px",
-                        border:`1px solid ${C.border}`, borderRadius:5,
-                        fontSize:12, color:C.text, background:"transparent",
-                        minWidth:200,
-                      }} />
-                  </TD>
-                  <TD right muted>{autoQty}</TD>
-                  <TD right input>
-                    <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
-                      <NumInput
-                        value={userQty !== "" ? userQty : autoQty}
-                        onChange={v=>setField(r.key,"qty",v)}
-                        width={72} />
-                      {userQty !== "" && (
-                        <button onClick={()=>setField(r.key,"qty",undefined)}
-                          style={{ fontSize:10, color:C.muted, background:"none", border:"none",
-                            cursor:"pointer", padding:0, textDecoration:"underline" }}>
-                          reset to auto
-                        </button>
-                      )}
-                    </div>
-                  </TD>
-                  <TD right input>
-                    <NumInput
-                      value={hw[r.key]?.price||""}
-                      onChange={v=>setField(r.key,"price",v)}
-                      width={90} />
-                  </TD>
-                  <TD right bold accent>
-                    {lineTotal>0 ? rupee(Math.round(lineTotal)) : <span style={{color:C.muted,fontSize:12}}>—</span>}
-                  </TD>
-                </tr>
-              );
-            })}
-          </tbody>
+          {tableHeader}
+          <tbody>{basicRows.map(hwRow)}</tbody>
         </table>
 
-        {/* Hardware subtotal */}
+        {/* ADVANCED TOGGLE */}
+        <div style={{ borderTop:`1px solid ${C.border}` }}>
+          <button onClick={()=>setShowAdvanced(v=>!v)} style={{
+            width:"100%", padding:"12px 20px", background: showAdvanced ? C.navyPale : "#fafbff",
+            border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"space-between",
+            fontSize:13, fontWeight:600, color:C.navy,
+          }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontSize:16 }}>{showAdvanced ? "▾" : "▸"}</span>
+              Advanced Hardware Items
+            </div>
+            <span style={{ fontSize:11, fontWeight:400, color:C.muted }}>
+              Anchors · Smoke Seal Strip · Screws & Fixings — minor cost items
+            </span>
+          </button>
+
+          {showAdvanced && (
+            <div>
+              <div style={{ padding:"10px 16px", background:"#f8f9fc", borderBottom:`1px solid ${C.border}`,
+                fontSize:12, color:C.muted }}>
+                These items typically have minor impact on the overall project cost but are included here for completeness.
+                SH Global will incorporate these into the formal quotation if not specified.
+              </div>
+              <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                {tableHeader}
+                <tbody>{advancedRows.map(hwRow)}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Subtotal */}
         <div style={{ padding:"14px 20px", borderTop:`1px solid ${C.border}`,
           display:"flex", justifyContent:"flex-end", alignItems:"center", gap:32 }}>
           <div style={{ fontSize:13, color:C.muted, lineHeight:1.6, maxWidth:380 }}>
-            This total covers only hardware &amp; finishes you have priced above.
+            This total covers only hardware &amp; finishes priced above.
             <strong style={{color:C.navy}}> Doors, frames, architraves, installation and services
             will be added by SH Global in your formal quotation.</strong>
           </div>
@@ -1387,7 +1461,7 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
             📎 Please also forward your {refImages.length} reference image{refImages.length>1?"s":""} to info@sh-global.in.
           </strong></>
         )}
-        <br/><strong style={{color:C.brownLight}}>+91 99209 24360 · info@sh-global.in · sh-global.in</strong>
+        <br/><strong style={{color:C.brownLight}}>+91 89281 62328 · info@sh-global.in · sh-global.in</strong>
       </div>
       <button onClick={()=>setSubmitted(false)} style={{
         background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.3)",
@@ -1562,7 +1636,7 @@ export default function App() {
             </div>
             {!isMobile && (
               <div style={{ display:"flex", gap:14, fontSize:12 }}>
-                <a href="tel:+919920924360" style={{ color:C.brownLight, textDecoration:"none", fontWeight:600 }}>+91 99209 24360</a>
+                <a href="tel:+918928162328" style={{ color:C.brownLight, textDecoration:"none", fontWeight:600 }}>+91 89281 62328</a>
                 <span style={{ color:"#3a5a80" }}>·</span>
                 <a href="mailto:info@sh-global.in" style={{ color:C.brownLight, textDecoration:"none", fontWeight:600 }}>info@sh-global.in</a>
                 <span style={{ color:"#3a5a80" }}>·</span>
@@ -1700,7 +1774,7 @@ export default function App() {
       <div style={{ borderTop:`1px solid ${C.border}`, marginTop:24, padding:"18px 28px", textAlign:"center" }}>
         <img src={LOGO_SRC} alt="SH Global" style={{ height:30, width:30, borderRadius:4, objectFit:"cover", marginBottom:6 }} />
         <div style={{ fontSize:12, color:C.muted }}>© S H Global · Doors &amp; Door Frames Specialists · Indian Market Edition</div>
-        <div style={{ fontSize:11, color:"#bbb", marginTop:3 }}>info@sh-global.in · sh-global.in · +91 99209 24360 · Mumbai</div>
+        <div style={{ fontSize:11, color:"#bbb", marginTop:3 }}>info@sh-global.in · sh-global.in · +91 89281 62328 · Mumbai</div>
       </div>
     </div>
   );
