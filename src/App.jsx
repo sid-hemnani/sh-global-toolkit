@@ -547,19 +547,19 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
 
   // ── Auto-calc helpers ───────────────────────────────────────────────────────
   const autoDoorFromFrame = (fs) => {
-    const sW = Number(fs.sectionW), openW = Number(fs.openW), openH = Number(fs.openH);
+    const sW = Number(fs.sectionT), openW = Number(fs.openW), openH = Number(fs.openH);
     if (sW && openW && openH) {
-      const w = openW - 2 * sW;
-      const h = openH - sW;
+      const w = openW - 2 * sT;
+      const h = openH - sT;
       return { w: w > 0 ? String(Math.round(w)) : "", h: h > 0 ? String(Math.round(h)) : "" };
     }
     return null;
   };
 
   const autoFrameOpenFromDoor = (d, fs) => {
-    const sW = Number(fs.sectionW), dW = Number(d.w), dH = Number(d.h);
+    const sT = Number(fs.sectionT), dW = Number(d.w), dH = Number(d.h);
     if (sW && dW && dH) {
-      return { openW: String(Math.round(dW + 2 * sW)), openH: String(Math.round(dH + sW)) };
+      return { openW: String(Math.round(dW + 2 * sT)), openH: String(Math.round(dH + sT)) };
     }
     return null;
   };
