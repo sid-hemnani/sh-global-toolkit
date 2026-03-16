@@ -1,10 +1,7 @@
-cd ~/sh-global-toolkit && git add . && git commit -m "Add Web3Forms key" && git puimport React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
-// Sign up free at web3forms.com → get your 
-
-
-access key → paste it here.
+// Sign up free at web3forms.com → get your access key → paste it here.
 // Free tier: 250 submissions/month. Sends full email to info@sh-global.in.
 const SEND_CONFIG = {
   accessKey: "4e7909e0-8dea-46de-a1ea-398b24ada2a7", // ← replace before going live
@@ -547,8 +544,8 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
 
   // ── Auto-calc helpers ───────────────────────────────────────────────────────
   const autoDoorFromFrame = (fs) => {
-    const sW = Number(fs.sectionT), openW = Number(fs.openW), openH = Number(fs.openH);
-    if (sW && openW && openH) {
+    const sT = Number(fs.sectionT), openW = Number(fs.openW), openH = Number(fs.openH);
+    if (sT && openW && openH) {
       const w = openW - 2 * sT;
       const h = openH - sT;
       return { w: w > 0 ? String(Math.round(w)) : "", h: h > 0 ? String(Math.round(h)) : "" };
@@ -558,7 +555,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
 
   const autoFrameOpenFromDoor = (d, fs) => {
     const sT = Number(fs.sectionT), dW = Number(d.w), dH = Number(d.h);
-    if (sW && dW && dH) {
+    if (sT && dW && dH) {
       return { openW: String(Math.round(dW + 2 * sT)), openH: String(Math.round(dH + sT)) };
     }
     return null;
@@ -602,8 +599,8 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
           });
         }
       }
-      // Section width changed while door dims already exist → auto-fill frame opening
-      if ((field === "sectionW") && inclFrames) {
+      // Section thickness changed while door dims already exist → auto-fill frame opening
+      if ((field === "sectionT") && inclFrames) {
         setDims(d => {
           const doorDims = d[key] || {};
           const autoOpen = autoFrameOpenFromDoor(doorDims, fs);
@@ -679,7 +676,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
           <div style={{ margin:"0 16px 16px", padding:"10px 14px", background:"#fffbf2",
             border:`1px solid ${C.brownBorder}`, borderRadius:7, fontSize:12, color:C.brownDark }}>
             <strong>Frames only:</strong> Enter section width and opening size in the frame table below.
-            Door leaf dimensions auto-calculate as Opening W − 2×Section W (width) and Opening H − Section W (height, head only).
+            Door leaf dimensions auto-calculate as Opening W − 2×Section T (width) and Opening H − Section T (height, head only).
           </div>
         )}
         {scope === "doors" && (
@@ -885,11 +882,11 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
                       </td>
                       {/* Opening size — blue tint or auto */}
                       <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
-                        {autoF ? roInput(autoF.openW, "Auto-calculated: door width + 2×section width")
+                        {autoF ? roInput(autoF.openW, "Auto-calculated: door width + 2×section thickness")
                                : frameInp(r.key,"openW","e.g. 1100","opening")}
                       </td>
                       <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
-                        {autoF ? roInput(autoF.openH, "Auto-calculated: door height + section width")
+                        {autoF ? roInput(autoF.openH, "Auto-calculated: door height + section thickness")
                                : frameInp(r.key,"openH","e.g. 2200","opening")}
                       </td>
                     </tr>
