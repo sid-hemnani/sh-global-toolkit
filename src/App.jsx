@@ -1050,13 +1050,6 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
       <tr key={r.key}>
         <TD bold>{r.label}</TD>
         <TD center muted>{r.unit}</TD>
-        <TD input>
-          <input type="text" value={hw[r.key]?.spec||""}
-            placeholder={r.label}
-            onChange={e=>setField(r.key,"spec",e.target.value)}
-            style={{ width:"100%", padding:"5px 8px", border:`1px solid ${C.border}`,
-              borderRadius:5, fontSize:12, color:C.text, background:"transparent", minWidth:180 }} />
-        </TD>
         <TD right muted>{autoQty}</TD>
         <TD right input>
           <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
@@ -1075,6 +1068,13 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
         <TD right bold accent>
           {lineTotal>0 ? rupee(Math.round(lineTotal)) : <span style={{color:C.muted,fontSize:12}}>—</span>}
         </TD>
+        <TD input>
+          <input type="text" value={hw[r.key]?.spec||""}
+            placeholder={r.label}
+            onChange={e=>setField(r.key,"spec",e.target.value)}
+            style={{ width:"100%", padding:"5px 8px", border:`1px solid ${C.border}`,
+              borderRadius:5, fontSize:12, color:C.text, background:"transparent", minWidth:180 }} />
+        </TD>
       </tr>
     );
   };
@@ -1082,9 +1082,9 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
   const tableHeader = (
     <thead><tr>
       <TH>Item</TH><TH>Unit</TH>
-      <TH>Brand / Specification</TH>
       <TH right>Auto Qty</TH><TH right>Your Qty</TH>
       <TH right>Unit Price (₹)</TH><TH right accent>Line Total</TH>
+      <TH>Brand / Spec (optional)</TH>
     </tr></thead>
   );
 
@@ -1160,6 +1160,7 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
 // ─── CTA / SEND ───────────────────────────────────────────────────────────────
 function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, scope, submitted, setSubmitted, isMobile, validateForSend, onValidationFail }) {
   const { mats, total, fireDoors, stdDoors, fsIs3614Mandatory } = calcResult;
+  const scopeLabel = scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only";
   const [showModal, setShowModal] = useState(false);
   const [sending,   setSending]   = useState(false);
   const [sendError, setSendError] = useState("");
@@ -1172,12 +1173,163 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
 
   function buildEmail() {
     const scopeLabel = scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only";
+    const line  = "─".repeat(60);
+    const dline = "═".repeat(60);
+    const col   = (l, v, w=28) => `${l.padEnd(w)}${v||"—"}`;
+    let b = "";
+
+    b += `${dline}\n`;
+    b += `  SH GLOBAL — BOQ ENQUIRY\n`;
+    b += `  Received ${new Date().toLocaleDateString("en-IN",{day:"numeric",month:"long",year:"numeric"})}\n`;
+    b += `${dline}\n\n`;
+
+    // ── 1. CLIENT & PROJECT ──────────────────────────────────────────
+    b += `1. CLIENT & PROJECT DETAILS\n${line}\n`;
+    b += `${col("Supply Scope:",       scopeLabel)}\n`;
+    b += `${col("Role:",               project.clientType)}\n`;
+    b += `${col("Contact Person:",     project.contact)}\n`;
+    if (project.company) b += `${col("Company / Firm:",   project.company)}\n`;
+    if (project.client)  b += `${col("End-Client:",       project.client)}\n`;
+    b += `${col("Phone / WhatsApp:",   project.phone)}\n`;
+    b += `${col("Email:",              project.email)}\n`;
+    b += `${col("Project Name:",       project.name)}\n`;
+    if (project.projectType) b += `${col("Project Type:",  project.projectType)}\n`;
+    if (project.buildType)   b += `${col("Build Type:",    project.buildType)}\n`;
+    b += `${col("Location:",           project.location + (project.gccCountry?` — ${project.gccCountry}`:""))}\n`;
+    if (project.site)      b += `${col("Site Address:",    project.site)}\n`;
+    if (project.scale)     b += `${col("Scale:",           project.scale)}\n`;
+    if (project.value)     b += `${col("Approx. Value:",   project.value)}\n`;
+    if (project.startDate) b += `${col("Target Start:",    project.startDate)}\n`;
+    if (project.endDate)   b += `${col("Target Completion:",project.endDate)}\n`;
+    if (project.delivery)  b += `${col("Delivery Notes:",  project.delivery)}\n`;
+    if (project.notes)     b += `${col("Additional Notes:",project.notes)}\n`;
+    b += `${col("Heard via:",          project.referralSource + (project.referralDetail?` — ${project.referralDetail}`:""))}\n`;
+    b += `\n`;
+
+    // ── 2. DOOR QUANTITIES ───────────────────────────────────────────
     const doorMeta = [
-      { key:"main",      label:"Main Door",      fire:true,  frdMin:60  },
-      { key:"staircase", label:"Staircase Door",  fire:true,  frdMin:120 },
-      { key:"bedroom",   label:"Bedroom Door",    fire:false, frdMin:null },
-      { key:"bathroom",  label:"Bathroom Door",   fire:false, frdMin:null },
-      { key:"duct",      label:"Duct Door",       fire:true,  frdMin:120 },
+      { key:"main",      label:"Main Door",      fire:true,  frdMin:60,  hinges:4 },
+      { key:"staircase", label:"Staircase Door",  fire:true,  frdMin:120, hinges:4 },
+      { key:"bedroom",   label:"Bedroom Door",    fire:false, frdMin:null,hinges:3 },
+      { key:"bathroom",  label:"Bathroom Door",   fire:false, frdMin:null,hinges:3 },
+      { key:"duct",      label:"Duct Door",       fire:true,  frdMin:120, hinges:4 },
+    ].filter(m => qty[m.key] > 0);
+
+    if (scope !== "frames" && doorMeta.length > 0) {
+      b += `2. DOOR QUANTITIES & DIMENSIONS\n${line}\n`;
+      b += `${"Door Type".padEnd(22)}${"Qty".padStart(4)}  ${"W×H mm".padEnd(14)}${"Thk".padEnd(8)}${"Standard".padEnd(10)}Hinges\n`;
+      b += `${"-".repeat(60)}\n`;
+      doorMeta.forEach(m => {
+        const d = dims[m.key]||{};
+        const size = (d.w && d.h) ? `${d.w}×${d.h}` : "not entered";
+        const thk  = d.t ? `${d.t}mm` : "—";
+        const std  = m.fire ? (d.standard||"IS 3614") : "N/A";
+        const tag  = m.fire ? ` [FRD ${m.frdMin}]` : "";
+        b += `${(m.label+tag).padEnd(22)}${String(qty[m.key]).padStart(4)}  ${size.padEnd(14)}${thk.padEnd(8)}${std.padEnd(10)}${m.hinges}\n`;
+      });
+      b += `${"-".repeat(60)}\n`;
+      b += `${"TOTAL".padEnd(22)}${String(total).padStart(4)}  Fire-rated: ${fireDoors}  ·  Standard: ${stdDoors}\n`;
+      b += `\n`;
+    }
+
+    // ── 3. FRAME SPECIFICATIONS ──────────────────────────────────────
+    if (scope !== "doors") {
+      b += `3. FRAME SPECIFICATIONS\n${line}\n`;
+      doorMeta.forEach(m => {
+        const f = frameSpecs[m.key]||{};
+        const secW  = f.sectionW ? `${f.sectionW}mm` : "—";
+        const secT  = f.sectionT ? `${f.sectionT}mm` : "—";
+        const openW = f.openW    ? `${f.openW}mm`    : "—";
+        const openH = f.openH    ? `${f.openH}mm`    : "—";
+        b += `${m.label} (${qty[m.key]} set${qty[m.key]>1?"s":""})\n`;
+        b += `  Type: ${f.type||"—"}   Material: ${f.material||"—"}\n`;
+        b += `  Section: ${secW} face × ${secT} depth   Opening: ${openW} W × ${openH} H\n`;
+      });
+      b += `\n`;
+    }
+
+    // ── 4. HARDWARE ──────────────────────────────────────────────────
+    b += `4. HARDWARE & FINISHES\n${line}\n`;
+    b += `${"Item".padEnd(36)}${"Qty".padEnd(10)}${"Spec / Brand"}\n`;
+    b += `${"-".repeat(60)}\n`;
+    const autoQtyMap2 = {
+      hinges:"hinges", anchors:"anchors", lockBody:"lockBody",
+      doorClosers:"doorClosers", latchSets:"latchSets", handles:"handles",
+      fireSeal:"fireSeal", screwsPack:"screws", laminateVeneer:"laminate",
+    };
+    HW_ROWS.forEach(r => {
+      const autoQty = mats[autoQtyMap2[r.key]]?.orderQty||0;
+      const userQty = hw[r.key]?.qty !== undefined ? hw[r.key].qty : autoQty;
+      const spec    = hw[r.key]?.spec || "Not specified";
+      const price   = hw[r.key]?.price;
+      const lineTotal = price ? Number(price) * Number(userQty) : 0;
+      const priceStr  = price ? `  ₹${Number(price).toLocaleString("en-IN")}/unit  →  ₹${Math.round(lineTotal).toLocaleString("en-IN")} total` : "";
+      const mandatory = r.key==="fireSeal" && fsIs3614Mandatory ? " [IS 3614 MANDATORY]" : "";
+      b += `${(r.label+mandatory).padEnd(36)}${String(userQty+" "+r.unit).padEnd(10)}${spec}${priceStr}\n`;
+    });
+    b += `\n`;
+
+    // ── 5. QUOTE PREP ────────────────────────────────────────────────
+    b += `5. QUOTE PREPARATION — FOR SH GLOBAL USE\n${line}\n`;
+    b += `Fill in Unit Rate and Amount, then send back as the formal quotation.\n\n`;
+    b += `${"Line Item".padEnd(38)}${"Description".padEnd(20)}${"Unit Rate (₹)".padStart(14)}  ${"Amount (₹)"}\n`;
+    b += `${"-".repeat(90)}\n`;
+
+    const quoteLines = [
+      ...(scope!=="frames" ? [
+        [`DOOR LEAVES (${total} nos)`, "", "", ""],
+        ...doorMeta.filter(m=>m.fire).map(m=>[
+          `  └ ${m.label} (FRD ${m.frdMin})`,
+          `${qty[m.key]} nos · ${dims[m.key]?.w||"?"}×${dims[m.key]?.h||"?"}×${dims[m.key]?.t||"?"}mm · ${dims[m.key]?.standard||"IS 3614"}`,
+          "", ""
+        ]),
+        ...doorMeta.filter(m=>!m.fire).map(m=>[
+          `  └ ${m.label}`,
+          `${qty[m.key]} nos · ${dims[m.key]?.w||"?"}×${dims[m.key]?.h||"?"}mm`,
+          "", ""
+        ]),
+      ] : []),
+      ...(scope!=="doors" ? [
+        [`DOOR FRAMES (${total} sets)`, "", "", ""],
+        ...doorMeta.map(m=>[
+          `  └ ${m.label} Frame`,
+          `${qty[m.key]} sets · ${frameSpecs[m.key]?.material||"?"} · ${frameSpecs[m.key]?.type||"?"}`,
+          "", ""
+        ]),
+      ] : []),
+      [`ARCHITRAVE SETS`, `${total} sets`, "", ""],
+      [`DOOR INSTALLATION`, `${total} nos`, "", ""],
+      [`FRAME INSTALLATION`, `${total} sets`, "", ""],
+      [`POLISHING / FINISH`, `${total} nos`, "", ""],
+      [`DELIVERY & HANDLING`, `Lump sum`, "", ""],
+      ["─".repeat(88), "", "", ""],
+      ["SUBTOTAL", "", "", ""],
+      ["GST @ 18%", "", "", ""],
+      ["TOTAL", "", "", ""],
+    ];
+
+    quoteLines.forEach(([item, desc]) => {
+      if (item.startsWith("─")) { b += `${item}\n`; return; }
+      b += `${item.padEnd(38)}${desc.padEnd(20)}\n`;
+    });
+
+    b += `\n`;
+    if (refImages?.length > 0) {
+      b += `${line}\n`;
+      b += `REFERENCE IMAGES (${refImages.length})\n`;
+      refImages.forEach((img,i) => b += `  [${i+1}] ${img.name}${img.note?` — "${img.note}"`:"" }\n`);
+    }
+
+    b += `\n${dline}\n`;
+    b += `Generated via SH Global Doors & Door Frames BOQ Tool · tools.sh-global.in\n`;
+    b += `${dline}\n`;
+    return b;
+  }
+      { key:"main",      label:"Main Door",      fire:true,  frdMin:60,  hinges:4 },
+      { key:"staircase", label:"Staircase Door",  fire:true,  frdMin:120, hinges:4 },
+      { key:"bedroom",   label:"Bedroom Door",    fire:false, frdMin:null,hinges:3 },
+      { key:"bathroom",  label:"Bathroom Door",   fire:false, frdMin:null,hinges:3 },
+      { key:"duct",      label:"Duct Door",       fire:true,  frdMin:120, hinges:4 },
     ].filter(m => qty[m.key] > 0);
 
     const navy = "#0d1f3c";
@@ -1290,16 +1442,16 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
       const bg = isSeal && fsIs3614Mandatory ? "#fdf0ec" : i%2===0?"#fff":"#f8f9fc";
       return `<tr>
         ${td(r.label + (isSeal && fsIs3614Mandatory ? ' <span style="background:#b83a1a;color:#fff;padding:1px 5px;border-radius:3px;font-size:10px;">IS 3614 MANDATORY</span>' : ""), "left", false, bg)}
-        ${td(spec, "left", false, bg)}
         ${td(`${userQty} ${r.unit}`, "center", true, bg)}
         ${td(price ? "₹"+Number(price).toLocaleString("en-IN") : "—", "right", false, bg)}
         ${td(lineTotal>0 ? "₹"+Math.round(lineTotal).toLocaleString("en-IN") : "—", "right", true, bg)}
+        ${td(spec !== "Not specified" ? spec : "—", "left", false, bg)}
       </tr>`;
     }).join("");
 
     const hardwareTable = tbl(`
       <thead><tr>
-        ${th("Item")}${th("Spec / Brand")}${th("Qty","center")}${th("Unit Price","right")}${th("Line Total","right")}
+        ${th("Item")}${th("Qty","center")}${th("Unit Price","right")}${th("Line Total","right")}${th("Brand / Spec (optional)")}
       </tr></thead>
       <tbody>${hwRows}</tbody>
     `);
@@ -1431,7 +1583,6 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
           email: project.email || "",
           message: body,
           replyto: project.email || "",
-          is_html: true,
         }),
       });
       const data = await res.json();
@@ -1511,6 +1662,7 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
               {[
                 ["Project",    project.name||"—"],
                 ["Contact",    project.contact||"—"],
+                ["Scope",      scopeLabel],
                 ["Total Doors",total],
                 ["Fire Doors", fireDoors],
                 ...(refImages?.length ? [["Ref. Images", `${refImages.length} — forward separately`]] : []),
@@ -1524,6 +1676,14 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
                 Doors, frames, architraves, installation and services will be priced by SH Global.
               </div>
             </div>
+
+            {/* Warning if door dimensions are missing */}
+            {scope !== "frames" && ["main","staircase","bedroom","bathroom","duct"].some(k => qty[k] > 0 && (!dims[k]?.w || !dims[k]?.h)) && (
+              <div style={{ background:"#fffbf2", border:`1.5px solid ${C.brownBorder}`, borderRadius:8,
+                padding:"10px 14px", marginBottom:14, fontSize:12, color:C.brownDark }}>
+                ⚠️ <strong>Some door dimensions are missing.</strong> You can still send — SH Global will follow up to confirm sizes before quoting.
+              </div>
+            )}
 
             {sendError && (
               <div style={{ background:"#fff0f0", border:"1px solid #e05050", borderRadius:8,
