@@ -218,18 +218,20 @@ const NumInput = ({ value, onChange, min, width }) => (
   <input type="number" min={min??0} step={1} value={value}
     onChange={e=>onChange(Number(e.target.value))}
     style={{
-      width:width||80, padding:"6px 8px",
+      width: width||80, padding:"6px 8px",
       border:`1.5px solid ${C.brownLight}`, borderRadius:5,
       fontSize:13, color:C.navyDark, background:"#fffdf9",
       textAlign:"right", fontWeight:600,
+      boxSizing:"border-box",
     }} />
 );
 
 const SelectInput = ({ value, onChange, options, width }) => (
   <select value={value} onChange={e=>onChange(e.target.value)}
-    style={{ padding:"6px 8px", border:`1px solid ${C.border}`,
-      borderRadius:5, fontSize:12, background:"#fff",
-      color:C.text, width:width||150 }}>
+    style={{ padding:"8px 10px", border:`1px solid ${C.border}`,
+      borderRadius:5, fontSize:13, background:"#fff",
+      color:value ? C.text : C.muted,
+      width: width || 150, boxSizing:"border-box" }}>
     <option value="">—</option>
     {options.map(o=><option key={o} value={o}>{o}</option>)}
   </select>
@@ -520,6 +522,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
   const qtyError = fieldErrors?.qty;
   const inclDoors  = scope !== "frames";
   const inclFrames = scope !== "doors";
+  const isMobile = useWindowWidth() < 640;
 
   const doorRows = [
     { key:"main",      label:"Main Door",      frdMin:60,  hinges:4, fire:true  },
@@ -622,15 +625,15 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
     <input type="number" min={0} placeholder={ph}
       value={dims[key]?.[field]||""}
       onChange={e=>setDim(key, field, e.target.value)}
-      style={{ width:70, padding:"4px 6px", border:`1.5px solid ${C.brownLight}`,
+      style={{ width: isMobile ? "100%" : 70, padding:"6px 8px", border:`1.5px solid ${C.brownLight}`,
         borderRadius:5, fontSize:12, textAlign:"right", color:C.text,
-        background:"#fffdf9", fontWeight:600 }} />
+        background:"#fffdf9", fontWeight:600, boxSizing:"border-box" }} />
   );
 
   const roInput = (val, title) => (
-    <div title={title} style={{ width:70, padding:"4px 6px", border:`1px dashed ${C.navyBorder}`,
+    <div title={title} style={{ width: isMobile ? "100%" : 70, padding:"6px 8px", border:`1px dashed ${C.navyBorder}`,
       borderRadius:5, fontSize:12, textAlign:"right", color:C.navy,
-      background:C.navyPale, fontWeight:700, display:"inline-block" }}>
+      background:C.navyPale, fontWeight:700, display:"inline-block", boxSizing:"border-box" }}>
       {val || <span style={{color:C.muted,fontWeight:400}}>auto</span>}
     </div>
   );
@@ -639,8 +642,8 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
     <input type="number" min={0} placeholder={ph}
       value={frameSpecs[key]?.[field]||""}
       onChange={e=>setFrameSpec(key, field, e.target.value)}
-      style={{ width:74, padding:"4px 6px", fontSize:12, fontWeight:600,
-        textAlign:"right", borderRadius:5, color:C.text,
+      style={{ width: isMobile ? "100%" : 74, padding:"6px 8px", fontSize:12, fontWeight:600,
+        textAlign:"right", borderRadius:5, color:C.text, boxSizing:"border-box",
         border:`1.5px solid ${group==="section" ? C.brownLight : C.navyBorder}`,
         background: group==="section" ? "#fffbf4" : "#f4f7fc" }} />
   );
@@ -656,7 +659,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
       {/* SCOPE TOGGLE */}
       <Card>
         <SectionHeader children="What do you need quoted?" sub="Controls which dimensions are shown and how auto-calculations work" />
-        <div style={{ padding:"16px 20px", display:"flex", gap:10, flexWrap:"wrap" }}>
+        <div style={{ padding:"16px 20px", display:"flex", flexDirection: isMobile ? "column" : "row", gap:10 }}>
           {SCOPE_OPTIONS.map(o => (
             <button key={o.val} onClick={()=>setScope(o.val)} style={{
               flex:"1 1 140px", padding:"12px 14px", borderRadius:8, cursor:"pointer",
@@ -706,118 +709,179 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
               ["📐 IS 3614 / IS 5509","Indian Standards for fire door construction. Smoke seal is mandatory for IS 3614."],
               ["🚪 Duct Door","Covers a service shaft — typically fire rated as ducts can spread fire between floors."],
             ].map(([title, desc])=>(
-              <div key={title} style={{ flex:"1 1 200px", background:"#f0f4ff", border:`1px solid ${C.navyBorder}`,
+              <div key={title} style={{ flex: isMobile ? "1 1 100%" : "1 1 200px",
+                background:"#f0f4ff", border:`1px solid ${C.navyBorder}`,
                 borderRadius:7, padding:"8px 12px", fontSize:12 }}>
                 <div style={{ fontWeight:700, color:C.navy, marginBottom:3 }}>{title}</div>
                 <div style={{ color:C.muted, lineHeight:1.5 }}>{desc}</div>
               </div>
             ))}
           </div>
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:900 }}>
-              <thead>
-                <tr>
-                  <TH>Door Type</TH>
-                  <TH center>Qty</TH>
-                  <TH center>Standard</TH>
-                  <TH right>Width (mm)</TH>
-                  <TH right>Height (mm)</TH>
-                  <TH right>Thickness (mm)</TH>
-                  <TH center>Hinges</TH>
-                  <TH center>Fire Rated</TH>
-                </tr>
-              </thead>
-              <tbody>
+          {isMobile ? (
+              <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", gap:12 }}>
                 {doorRows.map(r => {
                   const d = dims[r.key] || {};
                   const standard = d.standard || "IS 3614";
                   const allowedT = r.fire ? (FRD_THICKNESS[standard]?.[r.frdMin] || []) : null;
-                  const specLabel = r.fire ? `FRD ${r.frdMin} min · ${standard}` : "Standard internal";
-                  // In frames-only mode the opening is known; auto-calc door dims
                   const fs = frameSpecs[r.key] || {};
                   const autoD = scope === "frames" ? autoDoorFromFrame(fs) : null;
-
                   return (
-                    <tr key={r.key}>
-                      <TD bold>
-                        <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                            {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
-                            {r.label}
-                          </div>
-                          <div style={{ fontSize:11, color:C.muted }}>{specLabel}</div>
+                    <div key={r.key} style={{ border:`1.5px solid ${r.fire ? "#f0c8b8" : C.border}`,
+                      borderRadius:8, background: r.fire ? "#fdf8f6" : "#fff", overflow:"hidden" }}>
+                      {/* Card header */}
+                      <div style={{ padding:"10px 14px", borderBottom:`1px solid ${r.fire?"#f0c8b8":C.border}`,
+                        display:"flex", alignItems:"center", justifyContent:"space-between",
+                        background: r.fire ? "#fff0ec" : "#f8f9fc" }}>
+                        <div style={{ display:"flex", alignItems:"center", gap:8, fontWeight:700, fontSize:13, color:C.navy }}>
+                          {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
+                          {r.label}
                         </div>
-                      </TD>
-
-                      <TD center input>
                         <NumInput value={qty[r.key]} onChange={v=>setQty(q=>({...q,[r.key]:v}))} width={72} />
-                      </TD>
-
-                      {/* IS Standard toggle — fire doors only */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"center" }}>
-                        {r.fire ? (
-                          <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"center" }}>
-                            {["IS 3614","IS 5509"].map(std => (
-                              <label key={std} style={{
-                                display:"flex", alignItems:"center", gap:6,
-                                fontSize:12, fontWeight: standard===std ? 700 : 400,
-                                color: standard===std ? C.navy : C.muted,
-                                cursor:"pointer",
-                              }}>
-                                <input type="radio" checked={standard===std}
-                                  onChange={()=>setDim(r.key,"standard",std)}
-                                  style={{ accentColor:C.navy }} />
-                                {std}
-                              </label>
-                            ))}
+                      </div>
+                      {/* Card body */}
+                      <div style={{ padding:"12px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                        {/* IS Standard */}
+                        {r.fire && (
+                          <div style={{ gridColumn:"1 / span 2" }}>
+                            <div style={{ fontSize:11, color:C.muted, marginBottom:6, fontWeight:600 }}>IS STANDARD</div>
+                            <div style={{ display:"flex", gap:12 }}>
+                              {["IS 3614","IS 5509"].map(std => (
+                                <label key={std} style={{ display:"flex", alignItems:"center", gap:6,
+                                  fontSize:13, fontWeight: standard===std ? 700 : 400,
+                                  color: standard===std ? C.navy : C.muted, cursor:"pointer" }}>
+                                  <input type="radio" checked={standard===std}
+                                    onChange={()=>setDim(r.key,"standard",std)}
+                                    style={{ accentColor:C.navy }} />
+                                  {std}
+                                </label>
+                              ))}
+                            </div>
                           </div>
-                        ) : <span style={{color:C.muted,fontSize:12}}>N/A</span>}
-                      </td>
-
-                      {/* Width */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffdf9" }}>
-                        {autoD ? roInput(autoD.w, "Auto-calculated from frame opening") : dimInput(r.key,"w","e.g. 900")}
-                      </td>
-
-                      {/* Height */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffdf9" }}>
-                        {autoD ? roInput(autoD.h, "Auto-calculated from frame opening") : dimInput(r.key,"h","e.g. 2100")}
-                      </td>
-
-                      {/* Thickness — constrained for fire doors */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right",
-                        background: r.fire ? "#fff8f0" : "#fffdf9" }}>
-                        {r.fire ? (
-                          <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
-                            <select value={d.t||""}
-                              onChange={e=>setDim(r.key,"t",e.target.value)}
-                              style={{ width:80, padding:"5px 6px", fontSize:12, fontWeight:700,
-                                border:`1.5px solid ${d.t ? C.fire : C.brownLight}`,
-                                borderRadius:5, background:"#fff8f0",
-                                color: d.t ? C.fire : C.muted }}>
-                              <option value="">Select</option>
-                              {allowedT.map(t => <option key={t} value={t}>{t} mm</option>)}
-                            </select>
-                            <div style={{ fontSize:10, color:C.muted }}>{allowedT.join(" or ")} mm only</div>
-                          </div>
-                        ) : dimInput(r.key,"t","e.g. 32")}
-                      </td>
-
-                      <TD center muted>{r.hinges}</TD>
-                      <TD center>
-                        {r.fire ? <Badge fire>FRD {r.frdMin}</Badge>
-                                : <span style={{color:C.muted,fontSize:12}}>No</span>}
-                      </TD>
-                    </tr>
+                        )}
+                        {/* Width */}
+                        <div>
+                          <div style={{ fontSize:11, color:C.muted, marginBottom:4, fontWeight:600 }}>WIDTH (mm)</div>
+                          {autoD ? roInput(autoD.w, "Auto from frame") : dimInput(r.key,"w","e.g. 900")}
+                        </div>
+                        {/* Height */}
+                        <div>
+                          <div style={{ fontSize:11, color:C.muted, marginBottom:4, fontWeight:600 }}>HEIGHT (mm)</div>
+                          {autoD ? roInput(autoD.h, "Auto from frame") : dimInput(r.key,"h","e.g. 2100")}
+                        </div>
+                        {/* Thickness */}
+                        <div style={{ gridColumn: r.fire ? "1 / span 2" : "auto" }}>
+                          <div style={{ fontSize:11, color:C.muted, marginBottom:4, fontWeight:600 }}>THICKNESS (mm)</div>
+                          {r.fire ? (
+                            <div>
+                              <select value={d.t||""} onChange={e=>setDim(r.key,"t",e.target.value)}
+                                style={{ width:"100%", padding:"8px 10px", fontSize:13, fontWeight:700,
+                                  border:`1.5px solid ${d.t ? C.fire : C.brownLight}`,
+                                  borderRadius:6, background:"#fff8f0",
+                                  color: d.t ? C.fire : C.muted }}>
+                                <option value="">Select thickness</option>
+                                {allowedT.map(t => <option key={t} value={t}>{t} mm</option>)}
+                              </select>
+                              <div style={{ fontSize:10, color:C.muted, marginTop:3 }}>{allowedT.join(" or ")} mm only per {standard}</div>
+                            </div>
+                          ) : dimInput(r.key,"t","e.g. 32")}
+                        </div>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
+              </div>
+            ) : (
+              /* ── DESKTOP: table ── */
+              <div style={{ overflowX:"auto" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", minWidth:900 }}>
+                  <thead>
+                    <tr>
+                      <TH>Door Type</TH>
+                      <TH center>Qty</TH>
+                      <TH center>Standard</TH>
+                      <TH right>Width (mm)</TH>
+                      <TH right>Height (mm)</TH>
+                      <TH right>Thickness (mm)</TH>
+                      <TH center>Hinges</TH>
+                      <TH center>Fire Rated</TH>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {doorRows.map(r => {
+                      const d = dims[r.key] || {};
+                      const standard = d.standard || "IS 3614";
+                      const allowedT = r.fire ? (FRD_THICKNESS[standard]?.[r.frdMin] || []) : null;
+                      const specLabel = r.fire ? `FRD ${r.frdMin} min · ${standard}` : "Standard internal";
+                      const fs = frameSpecs[r.key] || {};
+                      const autoD = scope === "frames" ? autoDoorFromFrame(fs) : null;
+                      return (
+                        <tr key={r.key}>
+                          <TD bold>
+                            <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                                {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
+                                {r.label}
+                              </div>
+                              <div style={{ fontSize:11, color:C.muted }}>{specLabel}</div>
+                            </div>
+                          </TD>
+                          <TD center input>
+                            <NumInput value={qty[r.key]} onChange={v=>setQty(q=>({...q,[r.key]:v}))} width={72} />
+                          </TD>
+                          <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"center" }}>
+                            {r.fire ? (
+                              <div style={{ display:"flex", flexDirection:"column", gap:4, alignItems:"center" }}>
+                                {["IS 3614","IS 5509"].map(std => (
+                                  <label key={std} style={{ display:"flex", alignItems:"center", gap:6,
+                                    fontSize:12, fontWeight: standard===std ? 700 : 400,
+                                    color: standard===std ? C.navy : C.muted, cursor:"pointer" }}>
+                                    <input type="radio" checked={standard===std}
+                                      onChange={()=>setDim(r.key,"standard",std)}
+                                      style={{ accentColor:C.navy }} />
+                                    {std}
+                                  </label>
+                                ))}
+                              </div>
+                            ) : <span style={{color:C.muted,fontSize:12}}>N/A</span>}
+                          </td>
+                          <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffdf9" }}>
+                            {autoD ? roInput(autoD.w, "Auto-calculated from frame opening") : dimInput(r.key,"w","e.g. 900")}
+                          </td>
+                          <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffdf9" }}>
+                            {autoD ? roInput(autoD.h, "Auto-calculated from frame opening") : dimInput(r.key,"h","e.g. 2100")}
+                          </td>
+                          <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right",
+                            background: r.fire ? "#fff8f0" : "#fffdf9" }}>
+                            {r.fire ? (
+                              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3 }}>
+                                <select value={d.t||""} onChange={e=>setDim(r.key,"t",e.target.value)}
+                                  style={{ width:80, padding:"5px 6px", fontSize:12, fontWeight:700,
+                                    border:`1.5px solid ${d.t ? C.fire : C.brownLight}`,
+                                    borderRadius:5, background:"#fff8f0",
+                                    color: d.t ? C.fire : C.muted }}>
+                                  <option value="">Select</option>
+                                  {allowedT.map(t => <option key={t} value={t}>{t} mm</option>)}
+                                </select>
+                                <div style={{ fontSize:10, color:C.muted }}>{allowedT.join(" or ")} mm only</div>
+                              </div>
+                            ) : dimInput(r.key,"t","e.g. 32")}
+                          </td>
+                          <TD center muted>{r.hinges}</TD>
+                          <TD center>
+                            {r.fire ? <Badge fire>FRD {r.frdMin}</Badge>
+                                    : <span style={{color:C.muted,fontSize:12}}>No</span>}
+                          </TD>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
           {/* IS Standard thickness legend */}
           <div style={{ padding:"10px 16px 12px", borderTop:`1px solid ${C.border}`,
-            display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:10 }}>
             {[
               ["IS 3614", "FRD 60: 45mm only · FRD 120: 45mm or 55mm · Smoke seal MANDATORY"],
               ["IS 5509", "FRD 60: 40mm or 45mm · FRD 120: 40mm or 45mm · Smoke seal optional"],
@@ -836,65 +900,111 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
       {inclFrames && (
         <Card>
           <SectionHeader children="Door Frame Specifications"
-            sub="Section profile = timber dimensions · Opening size = clear opening the frame fits into" />
-          <div style={{ overflowX:"auto" }}>
-            <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1000 }}>
-              <thead>
-                <tr>
-                  <TH>Door Type</TH>
-                  <TH center>Sets</TH>
-                  <TH>Frame Type</TH>
-                  <TH>Frame Material</TH>
-                  <TH accent right>Section W (mm)</TH>
-                  <TH accent right>Section T (mm)</TH>
-                  <TH right>Opening W (mm)</TH>
-                  <TH right>Opening H (mm)</TH>
-                </tr>
-              </thead>
-              <tbody>
-                {doorRows.map(r => {
-                  const fs = frameSpecs[r.key] || {};
-                  const d  = dims[r.key] || {};
-                  // Auto opening from door dims (both scope or doors-only scope)
-                  const autoF = (scope === "doors" || scope === "both") ? autoFrameOpenFromDoor(d, fs) : null;
-
-                  return (
-                    <tr key={r.key} style={{ background:"#fff" }}>
-                      <TD bold>
-                        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                          {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
-                          {r.label}
-                        </div>
-                      </TD>
-                      <TD center muted>{qty[r.key]}</TD>
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}` }}>
-                        <SelectInput value={fs.type||""} onChange={v=>setFrameSpec(r.key,"type",v)} options={FRAME_TYPES} width={155} />
-                      </td>
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}` }}>
-                        <SelectInput value={fs.material||""} onChange={v=>setFrameSpec(r.key,"material",v)} options={FRAME_MATERIALS} width={130} />
-                      </td>
-                      {/* Section profile — amber tint */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffbf4" }}>
+            sub="Section profile = timber face × depth · Opening = clear wall opening" />
+          {isMobile ? (
+            /* ── MOBILE: stacked cards ── */
+            <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", gap:12 }}>
+              {doorRows.map(r => {
+                const fs = frameSpecs[r.key] || {};
+                const d  = dims[r.key] || {};
+                const autoF = (scope === "doors" || scope === "both") ? autoFrameOpenFromDoor(d, fs) : null;
+                return (
+                  <div key={r.key} style={{ border:`1px solid ${C.border}`, borderRadius:8, overflow:"hidden" }}>
+                    <div style={{ padding:"10px 14px", background:"#f8f9fc", borderBottom:`1px solid ${C.border}`,
+                      display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, fontWeight:700, fontSize:13, color:C.navy }}>
+                        {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
+                        {r.label}
+                      </div>
+                      <span style={{ fontSize:12, color:C.muted }}>{qty[r.key]} set{qty[r.key]!==1?"s":""}</span>
+                    </div>
+                    <div style={{ padding:"12px 14px", display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                      <div style={{ gridColumn:"1 / span 2" }}>
+                        <div style={{ fontSize:11, color:C.muted, marginBottom:4, fontWeight:600 }}>FRAME TYPE</div>
+                        <SelectInput value={fs.type||""} onChange={v=>setFrameSpec(r.key,"type",v)} options={FRAME_TYPES} width="100%" />
+                      </div>
+                      <div style={{ gridColumn:"1 / span 2" }}>
+                        <div style={{ fontSize:11, color:C.muted, marginBottom:4, fontWeight:600 }}>MATERIAL</div>
+                        <SelectInput value={fs.material||""} onChange={v=>setFrameSpec(r.key,"material",v)} options={FRAME_MATERIALS} width="100%" />
+                      </div>
+                      <div style={{ background:"#fffbf4", borderRadius:6, padding:"8px 10px" }}>
+                        <div style={{ fontSize:11, color:C.brownDark, marginBottom:4, fontWeight:600 }}>SECTION W (mm)</div>
                         {frameInp(r.key,"sectionW","e.g. 100","section")}
-                      </td>
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffbf4" }}>
+                      </div>
+                      <div style={{ background:"#fffbf4", borderRadius:6, padding:"8px 10px" }}>
+                        <div style={{ fontSize:11, color:C.brownDark, marginBottom:4, fontWeight:600 }}>SECTION T (mm)</div>
                         {frameInp(r.key,"sectionT","e.g. 75","section")}
-                      </td>
-                      {/* Opening size — blue tint or auto */}
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
-                        {autoF ? roInput(autoF.openW, "Auto-calculated: door width + 2×section thickness")
-                               : frameInp(r.key,"openW","e.g. 1100","opening")}
-                      </td>
-                      <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
-                        {autoF ? roInput(autoF.openH, "Auto-calculated: door height + section thickness")
-                               : frameInp(r.key,"openH","e.g. 2200","opening")}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                      <div style={{ background:"#f4f7fc", borderRadius:6, padding:"8px 10px" }}>
+                        <div style={{ fontSize:11, color:C.navy, marginBottom:4, fontWeight:600 }}>OPENING W (mm)</div>
+                        {autoF ? roInput(autoF.openW, "Auto: door W + 2×section T") : frameInp(r.key,"openW","e.g. 1100","opening")}
+                      </div>
+                      <div style={{ background:"#f4f7fc", borderRadius:6, padding:"8px 10px" }}>
+                        <div style={{ fontSize:11, color:C.navy, marginBottom:4, fontWeight:600 }}>OPENING H (mm)</div>
+                        {autoF ? roInput(autoF.openH, "Auto: door H + section T") : frameInp(r.key,"openH","e.g. 2200","opening")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            /* ── DESKTOP: table ── */
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", minWidth:1000 }}>
+                <thead>
+                  <tr>
+                    <TH>Door Type</TH>
+                    <TH center>Sets</TH>
+                    <TH>Frame Type</TH>
+                    <TH>Frame Material</TH>
+                    <TH accent right>Section W (mm)</TH>
+                    <TH accent right>Section T (mm)</TH>
+                    <TH right>Opening W (mm)</TH>
+                    <TH right>Opening H (mm)</TH>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doorRows.map(r => {
+                    const fs = frameSpecs[r.key] || {};
+                    const d  = dims[r.key] || {};
+                    const autoF = (scope === "doors" || scope === "both") ? autoFrameOpenFromDoor(d, fs) : null;
+                    return (
+                      <tr key={r.key} style={{ background:"#fff" }}>
+                        <TD bold>
+                          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                            {r.fire && <Badge fire>FRD {r.frdMin}</Badge>}
+                            {r.label}
+                          </div>
+                        </TD>
+                        <TD center muted>{qty[r.key]}</TD>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}` }}>
+                          <SelectInput value={fs.type||""} onChange={v=>setFrameSpec(r.key,"type",v)} options={FRAME_TYPES} width={155} />
+                        </td>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}` }}>
+                          <SelectInput value={fs.material||""} onChange={v=>setFrameSpec(r.key,"material",v)} options={FRAME_MATERIALS} width={130} />
+                        </td>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffbf4" }}>
+                          {frameInp(r.key,"sectionW","e.g. 100","section")}
+                        </td>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#fffbf4" }}>
+                          {frameInp(r.key,"sectionT","e.g. 75","section")}
+                        </td>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
+                          {autoF ? roInput(autoF.openW, "Auto-calculated: door width + 2×section thickness")
+                                 : frameInp(r.key,"openW","e.g. 1100","opening")}
+                        </td>
+                        <td style={{ padding:"8px 12px", borderBottom:`1px solid ${C.border}`, textAlign:"right", background:"#f4f7fc" }}>
+                          {autoF ? roInput(autoF.openH, "Auto-calculated: door height + section thickness")
+                                 : frameInp(r.key,"openH","e.g. 2200","opening")}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </Card>
       )}
 
@@ -902,7 +1012,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
       <Card>
         <SectionHeader children="Adjustable Quantities"
           sub="Auto-filled from your door data — override if your project differs" />
-        <div style={{ padding:16, display:"grid", gridTemplateColumns:"1fr 1fr", gap:14 }}>
+        <div style={{ padding:16, display:"grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap:14 }}>
           {/* Door closers */}
           <div style={{ background:C.navyPale, borderRadius:8, padding:14, border:`1px solid ${C.navyBorder}` }}>
             <div style={{ fontWeight:700, color:C.navy, fontSize:13, marginBottom:8 }}>Door Closers</div>
@@ -993,7 +1103,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
             })}
           </tbody>
         </table>
-        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:12, padding:16, borderTop:`1px solid ${C.border}` }}>
+        <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3,1fr)", gap:12, padding:16, borderTop:`1px solid ${C.border}` }}>
           {[["Total Doors",total,"navy"],["Fire-Rated",fireDoors,"fire"],["Standard",stdDoors,"brown"]].map(([l,v,t])=>(
             <div key={l} style={{ textAlign:"center", padding:12, borderRadius:8,
               background:t==="fire"?C.fireBg:t==="brown"?C.brownPale:C.navyPale }}>
@@ -1012,6 +1122,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
 // ─── TAB 3: HARDWARE & FINISHES ───────────────────────────────────────────────
 function HardwareFinishes({ hw, setHw, calcResult }) {
   const { mats } = calcResult;
+  const isMobile = useWindowWidth() < 640;
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const autoQtyMap = {
@@ -1046,6 +1157,43 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
     const effectiveQty = userQty !== "" ? Number(userQty) : autoQty;
     const price = Number(hw[r.key]?.price)||0;
     const lineTotal = price * effectiveQty;
+
+    if (isMobile) {
+      return (
+        <div key={r.key} style={{ border:`1px solid ${C.border}`, borderRadius:8, padding:"12px 14px",
+          background:"#fff", display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.navy }}>{r.label}</div>
+          <input type="text" value={hw[r.key]?.spec||""}
+            placeholder={`Brand / spec (optional)`}
+            onChange={e=>setField(r.key,"spec",e.target.value)}
+            style={{ width:"100%", padding:"8px 10px", border:`1px solid ${C.border}`,
+              borderRadius:6, fontSize:13, color:C.text, background:"#fafbff", boxSizing:"border-box" }} />
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
+            <div>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Qty ({r.unit})</div>
+              <NumInput value={userQty !== "" ? userQty : autoQty} onChange={v=>setField(r.key,"qty",v)} width="100%" />
+              {userQty !== "" && (
+                <button onClick={()=>setField(r.key,"qty",undefined)}
+                  style={{ fontSize:10, color:C.muted, background:"none", border:"none", cursor:"pointer", padding:"2px 0", textDecoration:"underline" }}>
+                  reset
+                </button>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Unit Price (₹)</div>
+              <NumInput value={hw[r.key]?.price||""} onChange={v=>setField(r.key,"price",v)} width="100%" />
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Total</div>
+              <div style={{ fontWeight:700, color:C.brownMid, fontSize:13, paddingTop:6 }}>
+                {lineTotal>0 ? rupee(Math.round(lineTotal)) : "—"}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <tr key={r.key}>
         <TD bold>{r.label}</TD>
@@ -1103,10 +1251,16 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
       {/* BASIC HARDWARE */}
       <Card>
         <SectionHeader children="Hardware & Finishes" sub="Core items — enter brand, spec and unit price for items you are sourcing" />
-        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-          {tableHeader}
-          <tbody>{basicRows.map(hwRow)}</tbody>
-        </table>
+        {isMobile ? (
+          <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", gap:10 }}>
+            {basicRows.map(hwRow)}
+          </div>
+        ) : (
+          <table style={{ width:"100%", borderCollapse:"collapse" }}>
+            {tableHeader}
+            <tbody>{basicRows.map(hwRow)}</tbody>
+          </table>
+        )}
 
         {/* ADVANCED TOGGLE */}
         <div style={{ borderTop:`1px solid ${C.border}` }}>
@@ -1119,9 +1273,11 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
               <span style={{ fontSize:16 }}>{showAdvanced ? "▾" : "▸"}</span>
               Advanced Hardware Items
             </div>
-            <span style={{ fontSize:11, fontWeight:400, color:C.muted }}>
-              Anchors · Smoke Seal Strip · Screws & Fixings — minor cost items
-            </span>
+            {!isMobile && (
+              <span style={{ fontSize:11, fontWeight:400, color:C.muted }}>
+                Anchors · Smoke Seal Strip · Screws & Fixings — minor cost items
+              </span>
+            )}
           </button>
 
           {showAdvanced && (
@@ -1131,25 +1287,32 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
                 These items typically have minor impact on the overall project cost but are included here for completeness.
                 SH Global will incorporate these into the formal quotation if not specified.
               </div>
-              <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                {tableHeader}
-                <tbody>{advancedRows.map(hwRow)}</tbody>
-              </table>
+              {isMobile ? (
+                <div style={{ padding:"12px 14px", display:"flex", flexDirection:"column", gap:10 }}>
+                  {advancedRows.map(hwRow)}
+                </div>
+              ) : (
+                <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                  {tableHeader}
+                  <tbody>{advancedRows.map(hwRow)}</tbody>
+                </table>
+              )}
             </div>
           )}
         </div>
 
         {/* Subtotal */}
-        <div style={{ padding:"14px 20px", borderTop:`1px solid ${C.border}`,
-          display:"flex", justifyContent:"flex-end", alignItems:"center", gap:32 }}>
-          <div style={{ fontSize:13, color:C.muted, lineHeight:1.6, maxWidth:380 }}>
+        <div style={{ padding:"14px 16px", borderTop:`1px solid ${C.border}`,
+          display:"flex", flexDirection: isMobile ? "column" : "row",
+          justifyContent:"flex-end", alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 10 : 32 }}>
+          <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
             This total covers only hardware &amp; finishes priced above.
             <strong style={{color:C.navy}}> Doors, frames, architraves, installation and services
             will be added by SH Global in your formal quotation.</strong>
           </div>
-          <div style={{ textAlign:"right", flexShrink:0 }}>
+          <div style={{ textAlign: isMobile ? "left" : "right", flexShrink:0 }}>
             <div style={{ fontSize:12, color:C.muted, marginBottom:4 }}>Hardware Subtotal (ex. GST)</div>
-            <div style={{ fontSize:24, fontWeight:900, color:C.navy }}>{rupee(Math.round(hwSubtotal))}</div>
+            <div style={{ fontSize:22, fontWeight:900, color:C.navy }}>{rupee(Math.round(hwSubtotal))}</div>
           </div>
         </div>
       </Card>
@@ -1414,7 +1577,7 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
       {showModal && (
         <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.65)",
           display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000, padding:16 }}>
-          <div style={{ background:"#fff", borderRadius:14, padding:28,
+          <div style={{ background:"#fff", borderRadius:14, padding: isMobile ? 18 : 28,
             maxWidth:460, width:"100%", boxShadow:"0 24px 64px rgba(0,0,0,0.35)" }}>
             <div style={{ display:"flex", alignItems:"center", gap:14, marginBottom:18 }}>
               <img src={LOGO_SRC} alt="SH Global" style={{ height:44, width:44, borderRadius:6, objectFit:"cover" }} />
@@ -1544,6 +1707,7 @@ export default function App() {
 
   const TAB_LABELS    = ["Project Info","Door Requirements","Hardware & Finishes"];
   const TAB_SUBLABELS = ["Your details","Door types & sizes","Optional pricing"];
+  const TAB_SHORT     = ["Project","Doors","Hardware"];
   const NUMERALS      = ["①","②","③","④"];
 
   return (
@@ -1598,7 +1762,7 @@ export default function App() {
                     {done && !active ? "✓" : i+1}
                   </span>
                   {!isMobile && <span>{t}</span>}
-                  {isMobile && <span>{t.split(" ")[0]}</span>}
+                  {isMobile && <span>{TAB_SHORT[i]}</span>}
                 </button>
               );
             })}
@@ -1635,26 +1799,15 @@ export default function App() {
         {/* Next / Back stepper */}
         {!submitted && (
           <div style={{
-            display:"flex", alignItems:"center", justifyContent:"space-between",
-            marginTop:20, padding:"16px 20px",
+            display:"flex", alignItems:"center",
+            flexDirection: isMobile ? "column" : "row",
+            justifyContent:"space-between",
+            marginTop:20, padding: isMobile ? "14px 16px" : "16px 20px",
             background:"#fff", border:`1px solid ${C.border}`, borderRadius:10,
             gap:12,
           }}>
-            {/* Back */}
-            <button
-              onClick={()=>goToTab(tab-1)}
-              disabled={tab===0}
-              style={{
-                padding:"11px 24px", fontWeight:700, fontSize:13,
-                border:`1.5px solid ${C.navyBorder}`, borderRadius:8,
-                background:"#fff", color: tab===0 ? "#ccc" : C.navy,
-                cursor: tab===0 ? "not-allowed" : "pointer",
-              }}>
-              ← Back
-            </button>
-
-            {/* Progress dots */}
-            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+            {/* Progress dots — top on mobile */}
+            <div style={{ display:"flex", gap:8, alignItems:"center", order: isMobile ? -1 : 0 }}>
               {TAB_LABELS.map((_,i)=>(
                 <button key={i} onClick={()=>goToTab(i)} style={{
                   width: tab===i ? 28 : 10, height:10,
@@ -1666,28 +1819,44 @@ export default function App() {
               ))}
             </div>
 
-            {/* Next or Send */}
-            {tab < 2 ? (
+            {/* Back + Next row on mobile */}
+            <div style={{ display:"flex", gap:10, width: isMobile ? "100%" : "auto" }}>
+              {/* Back */}
               <button
-                onClick={()=>goToTab(tab+1)}
+                onClick={()=>goToTab(tab-1)}
+                disabled={tab===0}
                 style={{
-                  padding:"11px 28px", fontWeight:800, fontSize:13,
-                  border:"none", borderRadius:8,
-                  background:`linear-gradient(135deg,${C.navy},${C.navyDark})`,
-                  color:"#fff", cursor:"pointer",
-                  boxShadow:"0 3px 10px rgba(0,0,0,0.18)",
+                  flex: isMobile ? 1 : "none",
+                  padding:"11px 24px", fontWeight:700, fontSize:13,
+                  border:`1.5px solid ${C.navyBorder}`, borderRadius:8,
+                  background:"#fff", color: tab===0 ? "#ccc" : C.navy,
+                  cursor: tab===0 ? "not-allowed" : "pointer",
                 }}>
-                {tab===0 ? "Next: Door Requirements →" :
-                           "Next: Hardware & Finishes →"}
+                ← Back
               </button>
-            ) : (
-              <div style={{ fontSize:12, color:C.muted, textAlign:"right", maxWidth:200 }}>
-                Use the <strong style={{color:C.brownMid}}>Send to SH Global</strong> button above when ready.
-              </div>
-            )}
+
+              {/* Next or Send */}
+              {tab < 2 ? (
+                <button
+                  onClick={()=>goToTab(tab+1)}
+                  style={{
+                    flex: isMobile ? 2 : "none",
+                    padding:"11px 28px", fontWeight:800, fontSize:13,
+                    border:"none", borderRadius:8,
+                    background:`linear-gradient(135deg,${C.navy},${C.navyDark})`,
+                    color:"#fff", cursor:"pointer",
+                    boxShadow:"0 3px 10px rgba(0,0,0,0.18)",
+                  }}>
+                  {tab===0 ? "Next: Doors →" : "Next: Hardware →"}
+                </button>
+              ) : (
+                <div style={{ fontSize:12, color:C.muted, textAlign:"right", maxWidth:200, flex:1 }}>
+                  Use the <strong style={{color:C.brownMid}}>Send to SH Global</strong> button above when ready.
+                </div>
+              )}
+            </div>
           </div>
         )}
-
         <SendCTA project={project} qty={qty} dims={dims} frameSpecs={frameSpecs}
           calcResult={calcResult} hw={hw} refImages={refImages} scope={scope}
           submitted={submitted} setSubmitted={setSubmitted} isMobile={isMobile}
