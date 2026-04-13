@@ -1483,6 +1483,53 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
       refImages.forEach((img,i) => b += `  [${i+1}] ${img.name}${img.note?` — "${img.note}"`:"" }\n`);
     }
 
+    // ── Quote Calculator deep links ────────────────────────────────────────
+    // Map BOQ door data → sh-quote variant keys
+    const toVariant = (key, d) => {
+      const std = d.standard || "IS 3614";
+      const t   = d.t || "";
+      if (key === "main")      return std === "IS 3614" ? (t === "45mm" ? "45mm_60"  : "45mm_60")   : (t === "40mm" ? "40mm_60" : "45mm_60");
+      if (key === "staircase") return std === "IS 3614" ? (t === "55mm" ? "55mm_120" : "45mm_120")  : (t === "40mm" ? "40mm_60" : "45mm_120");
+      if (key === "duct")      return std === "IS 3614" ? (t === "55mm" ? "55mm_120" : "45mm_120")  : (t === "40mm" ? "40mm_60" : "45mm_120");
+      return "35mm"; // bedroom / bathroom default
+    };
+    const toDoorType = (key, d) => {
+      if (key === "main" || key === "staircase" || key === "duct") {
+        return (d.standard || "IS 3614") === "IS 3614" ? "is3614" : "is5509";
+      }
+      return "pine_mr";
+    };
+    const DOOR_LABELS = { main:"Main Door", staircase:"Staircase Door", bedroom:"Bedroom Door", bathroom:"Bathroom Door", duct:"Duct Door" };
+
+    const batchItems = Object.entries(qty)
+      .filter(([, q]) => Number(q) > 0)
+      .map(([key, q]) => {
+        const d = dims[key] || {};
+        return {
+          dt:    toDoorType(key, d),
+          v:     toVariant(key, d),
+          w:     d.w || "900",
+          h:     d.h || "2100",
+          q:     String(q),
+          label: DOOR_LABELS[key] || key,
+        };
+      });
+
+    if (batchItems.length > 0) {
+      const encoded = btoa(encodeURIComponent(JSON.stringify(batchItems)));
+      const url = `https://sh-quote.vercel.app?batch=${encoded}`;
+      b += `\n${line}\n`;
+      b += `OPEN IN QUOTE CALCULATOR\n`;
+      b += `${line}\n`;
+      b += `Click to load all ${batchItems.length} door type${batchItems.length > 1 ? "s" : ""} pre-filled into the calculator:\n`;
+      b += `${url}\n`;
+      b += `\nOr open individually:\n`;
+      batchItems.forEach(item => {
+        const single = btoa(encodeURIComponent(JSON.stringify([item])));
+        b += `  ${item.label.padEnd(20)} https://sh-quote.vercel.app?batch=${single}\n`;
+      });
+    }
+
     b += `\n${dline}\n`;
     b += `Generated via SH Global Doors & Door Frames BOQ Tool · tools.sh-global.in\n`;
     b += `${dline}\n`;
