@@ -1321,8 +1321,8 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
 }
 
 // ─── CTA / SEND ───────────────────────────────────────────────────────────────
-function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, scope, submitted, setSubmitted, isMobile, validateForSend, onValidationFail }) {
-  const { mats, total, fireDoors, stdDoors, fsIs3614Mandatory } = calcResult;
+function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, scope, fsManual, fsIs3614Mandatory, submitted, setSubmitted, isMobile, validateForSend, onValidationFail }) {
+  const { mats, total, fireDoors, stdDoors } = calcResult;
   const scopeLabel = scope==="both"?"Doors + Frames":scope==="doors"?"Doors only":"Frames only";
   const [showModal, setShowModal] = useState(false);
   const [sending,   setSending]   = useState(false);
@@ -1415,13 +1415,13 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
     b += `4. HARDWARE & FINISHES\n${line}\n`;
     b += `${"Item".padEnd(36)}${"Qty".padEnd(10)}${"Spec / Brand"}\n`;
     b += `${"-".repeat(60)}\n`;
-    const autoQtyMap2 = {
+    const autoQtyMap3 = {
       hinges:"hinges", anchors:"anchors", lockBody:"lockBody",
       doorClosers:"doorClosers", latchSets:"latchSets", handles:"handles",
       fireSeal:"fireSeal", screwsPack:"screws", laminateVeneer:"laminate",
     };
     HW_ROWS.forEach(r => {
-      const autoQty = mats[autoQtyMap2[r.key]]?.orderQty||0;
+      const autoQty = mats[autoQtyMap3[r.key]]?.orderQty||0;
       const userQty = hw[r.key]?.qty !== undefined ? hw[r.key].qty : autoQty;
       const spec    = hw[r.key]?.spec || "Not specified";
       const price   = hw[r.key]?.price;
@@ -1484,14 +1484,13 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
     }
 
     // ── Quote Calculator deep links ────────────────────────────────────────
-    // Map BOQ door data → sh-quote variant keys
     const toVariant = (key, d) => {
       const std = d.standard || "IS 3614";
       const t   = d.t || "";
       if (key === "main")      return std === "IS 3614" ? (t === "45mm" ? "45mm_60"  : "45mm_60")   : (t === "40mm" ? "40mm_60" : "45mm_60");
       if (key === "staircase") return std === "IS 3614" ? (t === "55mm" ? "55mm_120" : "45mm_120")  : (t === "40mm" ? "40mm_60" : "45mm_120");
       if (key === "duct")      return std === "IS 3614" ? (t === "55mm" ? "55mm_120" : "45mm_120")  : (t === "40mm" ? "40mm_60" : "45mm_120");
-      return "35mm"; // bedroom / bathroom default
+      return "35mm";
     };
     const toDoorType = (key, d) => {
       if (key === "main" || key === "staircase" || key === "duct") {
@@ -1501,10 +1500,30 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
     };
     const DOOR_LABELS = { main:"Main Door", staircase:"Staircase Door", bedroom:"Bedroom Door", bathroom:"Bathroom Door", duct:"Duct Door" };
 
+    // Determine scope per door type for installation/polishing rates
+    const doorScope = (key) => {
+      if (scope === "doors")  return "doors";
+      if (scope === "frames") return "frames";
+      return "both"; // "both" scope
+    };
+
+    const autoQtyMap2 = {
+      hinges:"hinges", anchors:"anchors", lockBody:"lockBody",
+      doorClosers:"doorClosers", latchSets:"latchSets", handles:"handles",
+      fireSeal:"fireSeal", screwsPack:"screws", laminateVeneer:"laminate",
+    };
+
     const batchItems = Object.entries(qty)
       .filter(([, q]) => Number(q) > 0)
       .map(([key, q]) => {
         const d = dims[key] || {};
+        const f = frameSpecs[key] || {};
+        const isIs3614 = toDoorType(key, d) === "is3614";
+        const isIs5509 = toDoorType(key, d) === "is5509";
+        // IS 3614: smoke seal is mandatory — include intumescent in door price
+        // IS 5509: only include if client has manually set a smoke seal qty > 0
+        const int3614 = isIs3614 ? true : false;
+        const int5509 = isIs5509 && fsManual !== null && Number(fsManual) > 0 ? true : false;
         return {
           dt:    toDoorType(key, d),
           v:     toVariant(key, d),
@@ -1512,22 +1531,61 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
           h:     d.h || "2100",
           q:     String(q),
           label: DOOR_LABELS[key] || key,
+          scope: doorScope(key),
+          int3614,
+          int5509,
+          // frame data for frame calculator
+          fw:    f.sectionW || "",
+          fh:    f.sectionT || "",
+          ow:    f.openW || "",
+          oh:    f.openH || "",
+          fmat:  f.material || "",
         };
       });
 
+    // Hardware line items (itemised) — only rows where price has been entered
+    const hwLines = HW_ROWS.map(r => {
+      const autoQty = mats[autoQtyMap2[r.key]]?.orderQty || 0;
+      const userQty = hw[r.key]?.qty !== undefined ? Number(hw[r.key].qty) : autoQty;
+      const price   = Number(hw[r.key]?.price) || 0;
+      const spec    = hw[r.key]?.spec || "";
+      const mandatory = r.key === "fireSeal" && fsIs3614Mandatory;
+      if (!price && !mandatory) return null;
+      return {
+        label: r.label + (mandatory ? " (IS 3614 mandatory)" : ""),
+        qty:   userQty,
+        unit:  r.unit,
+        price,
+        total: Math.round(price * userQty),
+        spec,
+      };
+    }).filter(Boolean);
+
+    // Hardware subtotal
+    const hwTotal = hwLines.reduce((s, r) => s + r.total, 0);
+
+    // Client metadata to pre-fill quote builder
+    const clientMeta = {
+      name:    project.contact || "",
+      company: project.company || "",
+      phone:   project.phone   || "",
+      project: project.name    || "",
+      site:    project.site    || project.location || "",
+      hwTotal: Math.round(hwTotal),
+      hwLines,
+      scope,
+      totalDoors: total,
+    };
+
     if (batchItems.length > 0) {
-      const encoded = btoa(encodeURIComponent(JSON.stringify(batchItems)));
+      const payload = { items: batchItems, client: clientMeta };
+      const encoded = btoa(encodeURIComponent(JSON.stringify(payload)));
       const url = `https://sh-quote.vercel.app?batch=${encoded}`;
       b += `\n${line}\n`;
       b += `OPEN IN QUOTE CALCULATOR\n`;
       b += `${line}\n`;
-      b += `Click to load all ${batchItems.length} door type${batchItems.length > 1 ? "s" : ""} pre-filled into the calculator:\n`;
       b += `${url}\n`;
-      b += `\nOr open individually:\n`;
-      batchItems.forEach(item => {
-        const single = btoa(encodeURIComponent(JSON.stringify([item])));
-        b += `  ${item.label.padEnd(20)} https://sh-quote.vercel.app?batch=${single}\n`;
-      });
+      b += `(Opens all ${batchItems.length} door type${batchItems.length > 1 ? "s" : ""} pre-filled with client details)\n`;
     }
 
     b += `\n${dline}\n`;
@@ -1906,6 +1964,7 @@ export default function App() {
         )}
         <SendCTA project={project} qty={qty} dims={dims} frameSpecs={frameSpecs}
           calcResult={calcResult} hw={hw} refImages={refImages} scope={scope}
+          fsManual={fsManual} fsIs3614Mandatory={calcResult.fsIs3614Mandatory}
           submitted={submitted} setSubmitted={setSubmitted} isMobile={isMobile}
           validateForSend={()=>validateForSend(project,qty)}
           onValidationFail={(errs)=>{ setFieldErrors(errs); goToTab(0); }} />
