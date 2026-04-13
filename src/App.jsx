@@ -1017,7 +1017,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
           <div style={{ background:C.navyPale, borderRadius:8, padding:14, border:`1px solid ${C.navyBorder}` }}>
             <div style={{ fontWeight:700, color:C.navy, fontSize:13, marginBottom:8 }}>Door Closers</div>
             <div style={{ fontSize:12, color:C.muted, marginBottom:10 }}>Auto: 1 per fire-rated door ({fireDoors} doors)</div>
-            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
               <label style={{ fontSize:12, display:"flex", gap:6, alignItems:"center", cursor:"pointer" }}>
                 <input type="radio" checked={dcManual===null} onChange={()=>setDcManual(null)} style={{accentColor:C.navy}} /> Auto
               </label>
@@ -1050,7 +1050,7 @@ function DoorRequirements({ qty, setQty, dims, setDims, frameSpecs, setFrameSpec
                 ? `Auto: perimeter of each IS 3614 door (2×H + 2×W). IS 5509 doors excluded — add manually if required.`
                 : `IS 5509 doors only — smoke seal is optional. Use manual override to add if specified.`}
             </div>
-            <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+            <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
               <label style={{ fontSize:12, display:"flex", gap:6, alignItems:"center", cursor:"pointer" }}>
                 <input type="radio" checked={fsManual===null} onChange={()=>setFsManual(null)} style={{accentColor:C.navy}} /> Auto
               </label>
@@ -1221,7 +1221,7 @@ function HardwareFinishes({ hw, setHw, calcResult }) {
             placeholder={r.label}
             onChange={e=>setField(r.key,"spec",e.target.value)}
             style={{ width:"100%", padding:"5px 8px", border:`1px solid ${C.border}`,
-              borderRadius:5, fontSize:12, color:C.text, background:"transparent", minWidth:180 }} />
+              borderRadius:5, fontSize:12, color:C.text, background:"transparent" }} />
         </TD>
       </tr>
     );
