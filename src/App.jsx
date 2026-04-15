@@ -1,5 +1,326 @@
 import React, { useState, useMemo, useEffect } from "react";
 
+// ─── EXCEL DOWNLOAD — SheetJS loaded on demand ───────────────────────────────
+async function generateBOQExcel({ project, qty, dims, frameSpecs, hw, hwLines, hwTotal, scope, calcResult, batchItems }) {
+  // Load SheetJS from CDN on demand
+  if (!window.XLSX) {
+    await new Promise((res, rej) => {
+      const s = document.createElement("script");
+      s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js";
+      s.onload = res; s.onerror = rej;
+      document.head.appendChild(s);
+    });
+  }
+  const XL = window.XLSX;
+
+  const NAVY = "0D2580", NAVY2 = "162D8A", GOLD = "F0C060";
+  const OWHT = "F7F9FF", LBLUE = "EEF2FF", AMBG = "FFF8EE", AMFG = "7B3A10";
+  const MGRAY = "C5CADE", DKT = "0A1240", SUBT = "44507A", WHITE = "FFFFFF";
+  const ROWA = "F2F4FC", FIREBG = "FEF3E8";
+
+  const wb = XL.utils.book_new();
+
+  // ── helpers ──────────────────────────────────────────────────────────────
+  const toInchCeil = v => Math.ceil(parseFloat(v) / 25.4);
+  const toFeetQ    = v => Math.ceil(parseFloat(v) / 304.8 * 4) / 4;
+  const fmt        = v => Math.round(v).toLocaleString("en-IN");
+
+  function calcFrameRate(depthMm, owMm, ohMm, species="Red Meranti") {
+    const FACE_IN = 4;
+    const depthIn = toInchCeil(depthMm);
+    const wFt = toFeetQ(owMm), hFt = toFeetQ(ohMm);
+    const runFt = 2 * hFt + wFt;
+    const cubic = (FACE_IN * depthIn * runFt) / 144 * 1.10;
+    const rate  = species === "Teak" ? (hFt <= 7.5 ? 1501 : 1601) : 1200;
+    const labour= species === "Teak" ? 350 : 250;
+    return Math.round((cubic * rate + labour + 100) * 1.15);
+  }
+
+  // install/polish rates
+  const INSTALL = { both: 2500, doors: 1900, frames: 800 };
+  const POLISH  = { both: 2500, door:   600, frame:  2000 };
+
+  const doorMeta = [
+    { key:"main",      label:"Main Door",      fire:true,  frdMin:60,  thk:"45 mm", std:"IS 3614" },
+    { key:"staircase", label:"Staircase Door",  fire:true,  frdMin:120, thk:"55 mm", std:"IS 3614" },
+    { key:"bedroom",   label:"Bedroom Door",    fire:false, frdMin:null,thk:"35 mm", std:"—" },
+    { key:"bathroom",  label:"Bathroom Door",   fire:false, frdMin:null,thk:"35 mm", std:"—" },
+    { key:"duct",      label:"Duct Door",       fire:true,  frdMin:120, thk:"45 mm", std:"IS 3614" },
+  ].filter(m => Number(qty[m.key]) > 0);
+
+  const scopeLabel = scope === "both" ? "Doors + Frames" : scope === "doors" ? "Doors only" : "Frames only";
+
+  // door prices from batchItems (pre-calculated, same as sh-quote)
+  const doorPriceMap = {};
+  const framePriceMap = {};
+  (batchItems || []).forEach(item => {
+    doorPriceMap[item._key]  = item._doorPrice  || 0;
+    framePriceMap[item._key] = item._framePrice || 0;
+  });
+
+  // ── build aoa (array of arrays) ──────────────────────────────────────────
+  const aoa = [];
+  const merges = [];
+  const styles = {};  // row → col → style key
+
+  function row(...cells) { aoa.push(cells); return aoa.length; }  // returns 1-based row number
+  function emptyRow(n=1) { for(let i=0;i<n;i++) aoa.push([""]); }
+
+  // SheetJS CE (free) doesn't support styles natively — we use sheetjs-style for that
+  // Instead, generate clean data that Excel can read, with formatting via named styles
+  // For the free tier we mark cells with metadata and apply via cell.s
+
+  // Header
+  aoa.push(["S H GLOBAL"]);
+  aoa.push(["Ground Floor, Sant Savta Marg, Byculla East, Mumbai 400010  |  GSTN: 27AKLPH2089R1ZC  |  +91 89281 62328  |  tools.sh-global.in"]);
+  aoa.push(["BOQ & PRICE SUMMARY", "", "", "", "", "", "", "For client reference & vendor comparison"]);
+  aoa.push([""]);
+
+  // Section A
+  aoa.push(["A.  PROJECT & CLIENT DETAILS"]);
+  aoa.push(["Contact Person", project.contact||"—", "", "Company", project.company||"—"]);
+  aoa.push(["Phone / WhatsApp", project.phone||"—", "", "Email", project.email||"—"]);
+  aoa.push(["Project Name", project.name||"—", "", "Project Type", project.projectType||"—"]);
+  aoa.push(["Site Location", (project.site||project.location||"—"), "", "Supply Scope", scopeLabel]);
+  aoa.push(["Target Start", project.startDate||"—", "", "Referred By", project.referralSource ? `${project.referralSource}${project.referralDetail?" — "+project.referralDetail:""}` : "—"]);
+  aoa.push([""]);
+
+  // Section B: Door schedule
+  aoa.push(["B.  DOOR SCHEDULE"]);
+  aoa.push(["Sr.", "Door Type", "IS Standard", "FRD Rating", "Size (W×H mm)", "Thickness", "Qty", "Hinges / Set"]);
+  const HINGE_MAP = { main:4, staircase:4, bedroom:3, bathroom:3, duct:4 };
+  doorMeta.forEach((m, i) => {
+    const d = dims[m.key] || {};
+    const sz = (d.w && d.h) ? `${d.w} × ${d.h}` : "—";
+    const thk = d.t ? `${d.t} mm` : m.thk;
+    const std = m.fire ? (d.standard || "IS 3614") : "—";
+    const frd = m.fire ? `FRD ${m.frdMin}` : "—";
+    aoa.push([i+1, m.label, std, frd, sz, thk, Number(qty[m.key]), HINGE_MAP[m.key]||3]);
+  });
+  const totalDoors = doorMeta.reduce((s,m) => s + Number(qty[m.key]), 0);
+  aoa.push(["", "TOTAL DOORS", "", "", "", "", totalDoors, ""]);
+  aoa.push([""]);
+
+  // Section C: Frame schedule
+  aoa.push(["C.  FRAME SCHEDULE  —  Red Meranti · 4\" face (standard) · depth as specified · 15% margin"]);
+  aoa.push(["Sr.", "Door Type", "Material", "Section Depth", "Opening W", "Opening H", "Qty", "Rate / Set (₹)"]);
+  doorMeta.forEach((m, i) => {
+    const d = dims[m.key] || {};
+    const f = frameSpecs[m.key] || {};
+    const depthMm = parseFloat(f.sectionT) || 75;
+    const owMm    = parseFloat(f.openW) || (parseFloat(d.w||900) + 2*depthMm);
+    const ohMm    = parseFloat(f.openH) || (parseFloat(d.h||2100) + depthMm);
+    const material= f.material || "Red Meranti";
+    const rate    = calcFrameRate(depthMm, owMm, ohMm, material);
+    aoa.push([
+      i+1, m.label, material,
+      `${depthMm} mm (${toInchCeil(depthMm)}")`,
+      `${owMm} mm`, `${ohMm} mm`,
+      Number(qty[m.key]), rate
+    ]);
+  });
+  aoa.push([""]);
+
+  // Section D: Pricing summary
+  aoa.push(["D.  PRICING SUMMARY  (excl. GST)  —  for vendor comparison"]);
+
+  const instRate = INSTALL[scope] || INSTALL.both;
+  const polRate  = scope === "frames" ? POLISH.frame : scope === "doors" ? POLISH.door : POLISH.both;
+
+  // D1 — Door leaves
+  aoa.push(["", "DOOR LEAVES"]);
+  aoa.push(["Sr.", "Line Item", "", "", "Qty", "Unit", "Rate / Set (₹)", "Amount (₹)"]);
+
+  // door prices from calcResult
+  const doorRateMap = {};
+  (calcResult?.mats ? [] : []).forEach(() => {}); // placeholder
+  // Use batchItems if available, else use door catalog pricing inline
+  const DOOR_RATES_TABLE = {
+    is3614: { "45mm_60":{ no:235, with:275 }, "45mm_120":{ no:290, with:330 }, "55mm_120":{ no:360, with:400 } },
+    is5509: { "40mm_60":{ r:160 }, "45mm_60":{ r:160 }, "45mm_120":{ r:185 } },
+    pine_mr:{ "30mm":85, "35mm":90, "40mm":105, "45mm":120 },
+    hardwood_mr:{ "30mm":64, "35mm":72 },
+  };
+
+  let doorRowStart = aoa.length + 1;
+  doorMeta.forEach((m, i) => {
+    const d = dims[m.key] || {};
+    const std = m.fire ? (d.standard || "IS 3614") : null;
+    const t   = d.t ? `${d.t}mm` : "35mm";
+    let doorRate = 0;
+    if (m.fire) {
+      const frdMin = m.frdMin;
+      const isIs3614 = std === "IS 3614";
+      const variant = isIs3614 ? (t === "55mm" ? "55mm_120" : frdMin === 60 ? "45mm_60" : "45mm_120")
+                                : (t === "40mm" ? (frdMin===60?"40mm_60":"40mm_120") : frdMin===60?"45mm_60":"45mm_120");
+      const vd = isIs3614 ? DOOR_RATES_TABLE.is3614[variant] : DOOR_RATES_TABLE.is5509[variant];
+      const baseRate = isIs3614 ? (vd?.with || 275) : (vd?.r || 160); // always use 'with' for IS3614 (mandatory)
+      const wFt = toFeetQ(d.w||900), hFt = toFeetQ(d.h||2100);
+      const area = wFt * hFt;
+      const q = Number(qty[m.key]);
+      let r = baseRate;
+      if (q < 10) r += 3;
+      r += 3; // fire surcharge
+      r += 15; // transport
+      const preTax = r * area * q * 1.15 / q; // per door, 15% margin
+      doorRate = Math.round(preTax);
+    } else {
+      const ratePerSqFt = DOOR_RATES_TABLE.pine_mr[t] || 90;
+      const wFt = toFeetQ(d.w||800), hFt = toFeetQ(d.h||2100);
+      const area = wFt * hFt;
+      const q = Number(qty[m.key]);
+      let r = ratePerSqFt;
+      if (q < 10) r += 3;
+      r += 15;
+      const preTax = r * area * q * 1.15 / q;
+      doorRate = Math.round(preTax);
+    }
+    const frdLabel = m.fire ? ` / FRD ${m.frdMin} · w/ smoke seal` : "";
+    const thk = d.t ? `${d.t}mm` : m.thk;
+    const std2 = m.fire ? (d.standard||"IS 3614") : "Pine MR";
+    aoa.push([i+1, `${m.label} — ${std2} ${thk}${frdLabel}`, "", "", Number(qty[m.key]), "sets", doorRate, { f: `F${aoa.length+1}*G${aoa.length+1}` }]);
+    // Store for later formula use
+  });
+
+  // Re-compute door rows for proper formulas
+  // (SheetJS CE doesn't evaluate formulas — we compute amounts inline)
+  // Remove the last N door rows and re-add with computed amounts
+  const nDoors = doorMeta.length;
+  const doorRows = aoa.splice(aoa.length - nDoors, nDoors);
+  let doorSubtotal = 0;
+  doorRows.forEach((r, i) => {
+    const qty_d = r[4], rate_d = r[6];
+    const amount = typeof rate_d === "number" ? qty_d * rate_d : 0;
+    doorSubtotal += amount;
+    aoa.push([r[0], r[1], r[2], r[3], qty_d, r[5], rate_d, amount]);
+  });
+  aoa.push(["", "Door Leaves Subtotal", "", "", "", "", "", doorSubtotal]);
+  aoa.push([""]);
+
+  // D2 — Door frames
+  aoa.push(["", "DOOR FRAMES  —  Red Meranti · 4\" face (standard) · incl. black japan & horns"]);
+  aoa.push(["Sr.", "Line Item", "", "", "Qty", "Unit", "Rate / Set (₹)", "Amount (₹)"]);
+  let frameSubtotal = 0;
+  doorMeta.forEach((m, i) => {
+    const d = dims[m.key] || {};
+    const f = frameSpecs[m.key] || {};
+    const depthMm = parseFloat(f.sectionT) || 75;
+    const owMm    = parseFloat(f.openW) || (parseFloat(d.w||900) + 2*depthMm);
+    const ohMm    = parseFloat(f.openH) || (parseFloat(d.h||2100) + depthMm);
+    const material= f.material || "Red Meranti";
+    const rate    = calcFrameRate(depthMm, owMm, ohMm, material);
+    const q       = Number(qty[m.key]);
+    const amount  = rate * q;
+    frameSubtotal += amount;
+    aoa.push([i+1, `${m.label} Frame — ${material} · ${depthMm}mm depth`, "", "", q, "sets", rate, amount]);
+  });
+  aoa.push(["", "Door Frames Subtotal", "", "", "", "", "", frameSubtotal]);
+  aoa.push([""]);
+
+  // D3 — Installation & Polishing
+  aoa.push(["", "INSTALLATION & POLISHING"]);
+  aoa.push(["Sr.", "Line Item", "", "", "Qty", "Unit", "Rate / Set (₹)", "Amount (₹)"]);
+  const installAmt = instRate * totalDoors;
+  const polishAmt  = polRate  * totalDoors;
+  const polishLabel = scope === "frames" ? "Polishing — frame dhar" : scope === "doors" ? "Polishing — door dhar" : "Polishing — full set (door + frame dhar)";
+  const installLabel = scope === "frames" ? "Installation — frames" : scope === "doors" ? "Installation — doors" : "Installation — full set (door + frame)";
+  aoa.push([1, installLabel, "", "", totalDoors, "sets", instRate, installAmt]);
+  aoa.push([2, polishLabel,  "", "", totalDoors, "sets", polRate,  polishAmt]);
+  const installPolishSubtotal = installAmt + polishAmt;
+  aoa.push(["", "Installation & Polishing Subtotal", "", "", "", "", "", installPolishSubtotal]);
+  aoa.push([""]);
+
+  // Section E — Hardware
+  aoa.push(["E.  HARDWARE & FINISHES  —  prices indicative, based on quantities & brands provided by client"]);
+  aoa.push(["Sr.", "Item", "Spec / Brand", "", "Qty", "Unit", "Unit Price (₹)", "Total (₹)"]);
+
+  const HW_ROWS_DATA = [
+    { key:"hinges",        label:"Hinges",                        unit:"Pairs"  },
+    { key:"anchors",       label:"Anchor / Hold Fasteners",       unit:"Pcs"    },
+    { key:"lockBody",      label:"Lock Body",                     unit:"Pcs"    },
+    { key:"doorClosers",   label:"Door Closers",                  unit:"Pcs"    },
+    { key:"latchSets",     label:"Door Latch Sets",               unit:"Units"  },
+    { key:"handles",       label:"Handles",                       unit:"Pairs"  },
+    { key:"fireSeal",      label:"Smoke Seal Strip (IS 3614 ✓)", unit:"Metres" },
+    { key:"screwsPack",    label:"Screws / Fixings Pack",         unit:"Packs"  },
+    { key:"laminateVeneer",label:"Laminate / Veneer",             unit:"Sheets" },
+  ];
+  const autoQtyMap = {
+    hinges:"hinges", anchors:"anchors", lockBody:"lockBody", doorClosers:"doorClosers",
+    latchSets:"latchSets", handles:"handles", fireSeal:"fireSeal", screwsPack:"screws", laminateVeneer:"laminate",
+  };
+
+  let hwSubtotal = 0;
+  let hwRowCount = 0;
+  HW_ROWS_DATA.forEach((r, i) => {
+    const autoQty = calcResult?.mats?.[autoQtyMap[r.key]]?.orderQty || 0;
+    const userQty = hw[r.key]?.qty !== undefined ? Number(hw[r.key].qty) : autoQty;
+    const price   = Number(hw[r.key]?.price) || 0;
+    const spec    = hw[r.key]?.spec || "—";
+    if (!price && userQty === 0) return;
+    const total   = Math.round(price * userQty);
+    hwSubtotal   += total;
+    aoa.push([hwRowCount+1, r.label, spec, "", userQty, r.unit, price||"TBC", price ? total : "TBC"]);
+    hwRowCount++;
+  });
+  if (hwRowCount === 0) {
+    aoa.push(["", "No hardware prices entered — client to obtain separately", "", "", "", "", "", ""]);
+  }
+  aoa.push(["", "Hardware & Finishes Subtotal", "", "", "", "", "", hwSubtotal||"TBC"]);
+  aoa.push([""]);
+
+  // Section F — Grand total
+  aoa.push(["F.  TOTAL COST SUMMARY"]);
+  const subtotal = doorSubtotal + frameSubtotal + installPolishSubtotal + (hwSubtotal||0);
+  const gst      = Math.round(subtotal * 0.18);
+  const grand    = subtotal + gst;
+  aoa.push(["", "Door Leaves",               "", "", "", "", "", doorSubtotal]);
+  aoa.push(["", "Door Frames",               "", "", "", "", "", frameSubtotal]);
+  aoa.push(["", "Installation & Polishing",  "", "", "", "", "", installPolishSubtotal]);
+  aoa.push(["", "Hardware & Finishes",       "", "", "", "", "", hwSubtotal||"TBC"]);
+  aoa.push(["", "SUBTOTAL  (excl. GST)",     "", "", "", "", "", subtotal]);
+  aoa.push(["", "GST @ 18%",                 "", "", "", "", "", gst]);
+  aoa.push(["", "GRAND TOTAL  (incl. GST)",  "", "", "", "", "", grand]);
+  aoa.push([""]);
+
+  // Section G — Notes
+  aoa.push(["G.  NOTES & TERMS"]);
+  const dt = new Date().toLocaleDateString("en-IN", { day:"numeric", month:"long", year:"numeric" });
+  [
+    `Generated on ${dt} via S H Global BOQ Tool — tools.sh-global.in`,
+    "All prices are indicative based on specifications submitted. Final quote subject to confirmed drawings & site visit.",
+    "Hardware & finishes pricing based on brands/quantities provided by client — alternatives available on request.",
+    "IS 3614 smoke seal is mandatory and is included in the fire door pricing above.",
+    "GST @ 18% applicable. A-Form charges additional for FRD fire doors.",
+    "Payment: 50% advance. Frames delivered in 7 working days; doors in 15 days post laminate supply.",
+    "For queries: +91 89281 62328  |  info@sh-global.in",
+  ].forEach((n, i) => aoa.push([`${i+1}.`, n]));
+
+  // ── Create worksheet ──────────────────────────────────────────────────────
+  const ws = XL.utils.aoa_to_sheet(aoa);
+
+  // Column widths
+  ws["!cols"] = [
+    { wch:4 },   // A
+    { wch:38 },  // B
+    { wch:18 },  // C
+    { wch:14 },  // D
+    { wch:8 },   // E
+    { wch:10 },  // F
+    { wch:14 },  // G
+    { wch:14 },  // H
+  ];
+
+  XL.utils.book_append_sheet(wb, ws, "Project Quote");
+
+  // ── Download ──────────────────────────────────────────────────────────────
+  const safeName = (project.name || "BOQ").replace(/[^a-zA-Z0-9]/g, "_");
+  const safeContact = (project.contact || "Client").replace(/[^a-zA-Z0-9]/g, "_");
+  const filename = `SHGlobal_${safeName}_${safeContact}.xlsx`;
+  XL.writeFile(wb, filename);
+  return filename;
+}
+
 // ─── CONFIGURATION ────────────────────────────────────────────────────────────
 // Sign up free at web3forms.com → get your access key → paste it here.
 // Free tier: 250 submissions/month. Sends full email to info@sh-global.in.
@@ -1600,6 +1921,26 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
     setShowModal(true);
   };
 
+  const [xlDownloading, setXlDownloading] = useState(false);
+  const [xlDone,        setXlDone]        = useState(false);
+
+  const handleExcelDownload = async () => {
+    setXlDownloading(true);
+    try {
+      await generateBOQExcel({
+        project, qty, dims, frameSpecs, hw,
+        hwLines: [], hwTotal: 0,  // generateBOQExcel computes hw internally from hw + calcResult
+        scope, calcResult,
+        batchItems: [],
+      });
+      setXlDone(true);
+    } catch(e) {
+      console.error("Excel download failed:", e);
+    } finally {
+      setXlDownloading(false);
+    }
+  };
+
   const handleSend = async () => {
     setSending(true);
     setSendError("");
@@ -1637,18 +1978,46 @@ function SendCTA({ project, qty, dims, frameSpecs, calcResult, hw, refImages, sc
       borderRadius:12, padding:"28px 32px", textAlign:"center", marginTop:24 }}>
       <div style={{ color:"#6fcf97", fontSize:40, marginBottom:10 }}>✓</div>
       <div style={{ color:"#fff", fontWeight:800, fontSize:18, marginBottom:6 }}>Your BOQ has been sent to SH Global</div>
-      <div style={{ color:"#8aaedc", fontSize:14, lineHeight:1.9, marginBottom:18 }}>
-        We will review your requirements, price everything up, and send you a
-        formal quotation within 24 hours.
+      <div style={{ color:"#8aaedc", fontSize:14, lineHeight:1.9, marginBottom:20 }}>
+        We will review your requirements and send you a formal quotation within 24 hours.
         {refImages?.length > 0 && (
           <><br/><strong style={{color:"#f9d97a"}}>
             📎 Please also forward your {refImages.length} reference image{refImages.length>1?"s":""} to info@sh-global.in.
           </strong></>
         )}
-        <br/><strong style={{color:C.brownLight}}>+91 89281 62328 · info@sh-global.in · sh-global.in</strong>
+        <br/><strong style={{color:C.brownLight}}>+91 89281 62328 · info@sh-global.in</strong>
       </div>
+
+      {/* Excel download CTA */}
+      <div style={{
+        background:"rgba(200,145,90,0.12)", border:"1px solid rgba(200,145,90,0.35)",
+        borderRadius:10, padding:"18px 22px", marginBottom:20,
+      }}>
+        <div style={{color:C.brownLight, fontWeight:700, fontSize:14, marginBottom:6}}>
+          📥 Download your project breakdown
+        </div>
+        <div style={{color:"#c8d8ee", fontSize:12, marginBottom:14, lineHeight:1.6}}>
+          Get an Excel sheet with your full door schedule, frame schedule, pricing summary and hardware list
+          — ready to compare quotes from any vendor.
+        </div>
+        <button
+          onClick={handleExcelDownload}
+          disabled={xlDownloading}
+          style={{
+            background: xlDone ? "#1a7a4a" : C.brownLight,
+            color: "#fff",
+            border:"none", borderRadius:8,
+            padding:"11px 28px", fontSize:13, fontWeight:700,
+            cursor: xlDownloading ? "wait" : "pointer",
+            transition:"all .2s",
+          }}
+        >
+          {xlDownloading ? "⏳ Generating..." : xlDone ? "✓ Downloaded" : "⬇  Download BOQ Excel"}
+        </button>
+      </div>
+
       <button onClick={()=>setSubmitted(false)} style={{
-        background:"rgba(255,255,255,0.12)", color:"#fff", border:"1px solid rgba(255,255,255,0.3)",
+        background:"rgba(255,255,255,0.10)", color:"#fff", border:"1px solid rgba(255,255,255,0.25)",
         borderRadius:8, padding:"10px 22px", fontSize:13, cursor:"pointer", fontWeight:600,
       }}>← Make a change &amp; re-send</button>
     </div>
